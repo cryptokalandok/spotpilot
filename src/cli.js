@@ -16,8 +16,9 @@ import {
   normalizePositiveDecimal,
   splitPair,
 } from './normalizers.js';
+import { configureDnsResultOrder } from './network.js';
 
-const VERSION = '0.5.0';
+const VERSION = '0.5.1';
 const BOOLEAN_OPTIONS = new Set(['help', 'yes', 'dryrun', 'debug']);
 
 export async function runCli(argv, dependencies = {}) {
@@ -54,6 +55,10 @@ export async function runCli(argv, dependencies = {}) {
 
     const fileEnv = loadEnvFile(join(cwd, '.env'));
     const config = { ...fileEnv, ...env };
+    configureDnsResultOrder(
+      config.SPOTPILOT_DNS_RESULT_ORDER,
+      dependencies.setDnsResultOrder,
+    );
     const exchange = normalizeExchangeName(
       options.exchange ?? config.SPOTPILOT_EXCHANGE ?? 'safetrade',
     );

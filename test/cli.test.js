@@ -5,7 +5,7 @@ import { runCli } from '../src/cli.js';
 test('no command prints help instead of doing nothing', async () => {
   const result = await runWithClient([], {});
   assert.equal(result.code, 0);
-  assert.match(result.output, /SpotPilot 0\.5\.0/);
+  assert.match(result.output, /SpotPilot 0\.5\.1/);
   assert.match(result.output, /node spotpilot price/);
 });
 
@@ -26,6 +26,7 @@ test('--exchange coinex selects the CoinEx client', async () => {
       },
       stdout: (line) => stdout.push(line),
       stderr: (line) => stderr.push(line),
+      setDnsResultOrder: () => {},
       env: {},
       cwd: '/directory-that-does-not-exist',
     },
@@ -35,6 +36,33 @@ test('--exchange coinex selects the CoinEx client', async () => {
   assert.equal(factoryCalls[0].exchange, 'coinex');
   assert.match(stdout.join('\n'), /\[CoinEx\].*0\.30 USDT/);
   assert.deepEqual(stderr, []);
+});
+
+test('CLI prefers IPv4 by default for every exchange', async () => {
+  const dnsOrders = [];
+  const result = await runWithClient(
+    ['price', '--exchange', 'coinex', '--pair', 'BTC-USDT'],
+    { getPrice: async () => ({ price: '60000' }) },
+    { setDnsResultOrder: (value) => dnsOrders.push(value) },
+  );
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(dnsOrders, ['ipv4first']);
+});
+
+test('CLI DNS result order can be overridden from the environment', async () => {
+  const dnsOrders = [];
+  const result = await runWithClient(
+    ['price', '--pair', 'BTC-USDT'],
+    { getPrice: async () => ({ price: '60000' }) },
+    {
+      env: { SPOTPILOT_DNS_RESULT_ORDER: 'verbatim' },
+      setDnsResultOrder: (value) => dnsOrders.push(value),
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(dnsOrders, ['verbatim']);
 });
 
 test('price prints a human-readable last traded price', async () => {
@@ -219,6 +247,7 @@ async function runWithClient(args, client, extra = {}) {
     stdout: (line) => stdout.push(line),
     stderr: (line) => stderr.push(line),
     env: {},
+    setDnsResultOrder: () => {},
     cwd: '/directory-that-does-not-exist',
     ...extra,
   });

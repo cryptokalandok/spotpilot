@@ -48,6 +48,7 @@ cp .env.example .env
 
 ```dotenv
 SPOTPILOT_EXCHANGE=coinex
+SPOTPILOT_DNS_RESULT_ORDER=ipv4first
 
 COINEX_API_KEY=your-access-id
 COINEX_API_SECRET=your-secret-key
@@ -64,6 +65,11 @@ Exchange selection uses this precedence:
 
 The CLI loads `.env` itself; no `dotenv` package is needed. Existing shell
 environment variables override values from the file.
+
+`SPOTPILOT_DNS_RESULT_ORDER` controls DNS address ordering for every exchange,
+not only SafeTrade. It defaults to `ipv4first`, which prefers IPv4 without
+disabling IPv6 fallback. Use `ipv6first` to prefer IPv6 or `verbatim` to retain
+the address order returned by the operating system's resolver.
 
 Optional variables:
 
@@ -210,7 +216,8 @@ functions or fake clients and verify:
 - SafeTrade and CoinEx HMAC-SHA256 signatures and monotonic timestamps;
 - exact URLs, authentication headers and JSON order bodies;
 - exchange selection through the CLI and factory;
-- pair trading plus asset/network deposit and withdrawal status normalization;
+- asset/network deposit and withdrawal status normalization;
+- the global IPv4-first default and DNS result-order override;
 - market/limit validation and mutually exclusive price options;
 - balance normalization and insufficient-balance rejection;
 - exact decimal and percentage calculations without floating-point rounding;
@@ -250,12 +257,25 @@ from another normal network and contact SafeTrade support with the displayed
 Cloudflare Ray ID if the block persists. Before choosing AWS Lambda, ask
 SafeTrade whether requests from AWS IP ranges are supported.
 
+Some hosts have both IPv4 and IPv6 connectivity while SafeTrade has allowlisted
+only one of their public addresses. SpotPilot therefore prefers IPv4 for all
+exchange requests by default. To temporarily restore Node's resolver order:
+
+```dotenv
+SPOTPILOT_DNS_RESULT_ORDER=verbatim
+```
+
 ## Node.js library usage
 
 Use the exchange factory when application configuration chooses the provider:
 
 ```js
-import { createExchangeClient } from './src/index.js';
+import {
+  configureDnsResultOrder,
+  createExchangeClient,
+} from './src/index.js';
+
+configureDnsResultOrder(process.env.SPOTPILOT_DNS_RESULT_ORDER);
 
 const client = createExchangeClient({
   exchange: process.env.SPOTPILOT_EXCHANGE ?? 'coinex',
@@ -274,8 +294,9 @@ await client.createOrder({
 });
 ```
 
-`SafeTradeClient` and `CoinExClient` can also be instantiated directly. All
-financial values stay as decimal strings.
+`SafeTradeClient` and `CoinExClient` can also be instantiated directly.
+`configureDnsResultOrder()` uses the same global IPv4-first default for library
+and future Lambda entry points. All financial values stay as decimal strings.
 
 ## API mapping
 

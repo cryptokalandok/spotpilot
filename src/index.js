@@ -22,6 +22,12 @@ export {
   splitPair,
 } from './normalizers.js';
 export {
+  DEFAULT_DNS_RESULT_ORDER,
+  SUPPORTED_DNS_RESULT_ORDERS,
+  configureDnsResultOrder,
+  normalizeDnsResultOrder,
+} from './network.js';
+export {
   applyPercent,
   compareDecimals,
   multiplyDecimals,
