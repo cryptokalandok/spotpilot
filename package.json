@@ -1,0 +1,30 @@
+{
+  "name": "spotpilot",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A dependency-free SafeTrade spot trading CLI and Node.js client.",
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "spotpilot": "./spotpilot"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node ./spotpilot",
+    "spotpilot": "node ./spotpilot",
+    "test": "node --test",
+    "check": "node --check spotpilot && node --check src/cli.js && node --check src/client.js && node --check src/decimal.js && node --check src/normalizers.js && node --check src/errors.js",
+    "smoke:live": "node ./spotpilot price --pair PRL-USDT"
+  },
+  "keywords": [
+    "safetrade",
+    "spot-trading",
+    "exchange-api"
+  ],
+  "license": "MIT"
+}
