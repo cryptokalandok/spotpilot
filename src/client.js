@@ -11,6 +11,10 @@ import {
   normalizeMarket,
   normalizePositiveDecimal,
 } from './normalizers.js';
+import {
+  extractItems,
+  normalizeAssetTransferStatus,
+} from './status.js';
 
 export const DEFAULT_BASE_URL = 'https://safe.trade/api/v2';
 
@@ -60,6 +64,40 @@ export class SafeTradeClient {
   async getMarkets(options = {}) {
     return this.#request('/trade/public/markets', {
       signal: options.signal,
+    });
+  }
+
+  async getCurrencies(options = {}) {
+    return this.#request('/trade/public/currencies', {
+      signal: options.signal,
+    });
+  }
+
+  async getAssetStatuses(coins, options = {}) {
+    if (coins === undefined) {
+      throw new SafeTradeValidationError('coins is required');
+    }
+    const assets = normalizeCoinList(coins);
+    const currenciesPayload = await this.getCurrencies({
+      signal: options.signal,
+    });
+    const currencies = extractItems(currenciesPayload, ['currencies']);
+
+    return assets.map((asset) => {
+      const currency = currencies.find(
+        (item) => safeTradeAssetCode(item) === asset,
+      );
+      if (!currency) {
+        throw new SafeTradeApiError(
+          `SafeTrade returned no currency status for ${asset}`,
+          {
+            exchange: 'safetrade',
+            response: currenciesPayload,
+            code: 'CURRENCY_NOT_FOUND',
+          },
+        );
+      }
+      return normalizeAssetTransferStatus(asset, currency);
     });
   }
 
@@ -326,6 +364,15 @@ function normalizeEnum(value, fieldName, allowed) {
 function normalizeCoinList(coins) {
   const values = Array.isArray(coins) ? coins : String(coins).split(',');
   return values.map(normalizeAsset);
+}
+
+function safeTradeAssetCode(currency) {
+  const value = currency?.code ?? currency?.id ?? currency?.currency;
+  try {
+    return value === undefined ? null : normalizeAsset(String(value));
+  } catch {
+    return null;
+  }
 }
 
 async function parseResponse(response) {

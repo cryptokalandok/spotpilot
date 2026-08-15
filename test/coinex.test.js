@@ -13,8 +13,8 @@ import {
 const FIXED_TIME = 1_700_490_703_564;
 
 test('CoinEx market normalization uses uppercase concatenated symbols', () => {
-  assert.equal(normalizeCoinExMarket('PRL-USDT'), 'PRLUSDT');
-  assert.equal(normalizeCoinExMarket('prl/usdt'), 'PRLUSDT');
+  assert.equal(normalizeCoinExMarket('BTC-USDT'), 'BTCUSDT');
+  assert.equal(normalizeCoinExMarket('btc/usdt'), 'BTCUSDT');
 });
 
 test('CoinEx signature follows METHOD + request_path + body + timestamp', () => {
@@ -37,28 +37,28 @@ test('CoinEx signature follows METHOD + request_path + body + timestamp', () => 
 test('CoinEx getPrice uses the public v2 ticker without authentication', async () => {
   const calls = [];
   const client = createClient(calls, () => coinExResponse([
-    { market: 'PRLUSDT', last: '0.300000', open: '0.28' },
+    { market: 'BTCUSDT', last: '60000', open: '59000' },
   ]));
 
-  const result = await client.getPrice('PRL-USDT');
+  const result = await client.getPrice('BTC-USDT');
 
   assert.equal(
     calls[0].url,
-    'https://api.coinex.com/v2/spot/ticker?market=PRLUSDT',
+    'https://api.coinex.com/v2/spot/ticker?market=BTCUSDT',
   );
   assert.equal(calls[0].options.headers['X-COINEX-KEY'], undefined);
-  assert.equal(result.market, 'PRLUSDT');
-  assert.equal(result.price, '0.300000');
+  assert.equal(result.market, 'BTCUSDT');
+  assert.equal(result.price, '60000');
 });
 
 test('CoinEx balances are signed and normalized', async () => {
   const calls = [];
   const client = createClient(calls, () => coinExResponse([
-    { ccy: 'PRL', available: '10.5', frozen: '1.25' },
-    { ccy: 'USDT', available: '20', frozen: '0' },
+    { ccy: 'QUAI', available: '10.5', frozen: '1.25' },
+    { ccy: 'RVN', available: '20', frozen: '0' },
   ]));
 
-  const balances = await client.getBalances({ coins: 'PRL' });
+  const balances = await client.getBalances({ coins: 'QUAI' });
   const { headers } = calls[0].options;
   const expectedSign = createHmac('sha256', 'secret')
     .update(`GET/v2/assets/spot/balance${FIXED_TIME}`)
@@ -76,7 +76,44 @@ test('CoinEx balances are signed and normalized', async () => {
     balances.map(({ asset, total, available, locked }) => ({
       asset, total, available, locked,
     })),
-    [{ asset: 'PRL', total: '11.75', available: '10.5', locked: '1.25' }],
+    [{ asset: 'QUAI', total: '11.75', available: '10.5', locked: '1.25' }],
+  );
+});
+
+test('CoinEx asset status supports multiple coins and chain-level status', async () => {
+  const calls = [];
+  const client = createClient(calls, (url) => {
+    const asset = url.searchParams.get('ccy');
+    return coinExResponse({
+      asset: {
+        ccy: asset,
+        deposit_enabled: asset !== 'PEARL',
+        withdraw_enabled: true,
+      },
+      chains: [{
+        chain: asset === 'PEARL' ? 'PEARL' : 'TRC20',
+        deposit_enabled: asset !== 'PEARL',
+        withdraw_enabled: true,
+      }],
+    });
+  });
+
+  const result = await client.getAssetStatuses('PEARL,USDT');
+  const configCalls = calls.filter(({ url }) => (
+    new URL(url).pathname.endsWith('/assets/deposit-withdraw-config')
+  ));
+
+  assert.equal(result[0].asset, 'PEARL');
+  assert.equal(result[0].depositEnabled, false);
+  assert.equal(result[0].networks[0].network, 'PEARL');
+  assert.equal(result[1].depositEnabled, true);
+  assert.deepEqual(
+    configCalls.map(({ url }) => new URL(url).searchParams.get('ccy')),
+    ['PEARL', 'USDT'],
+  );
+  assert.equal(
+    configCalls.every(({ options }) => options.headers['X-COINEX-SIGN']),
+    true,
   );
 });
 
@@ -88,7 +125,7 @@ test('CoinEx limit order sends the documented v2 request body and signature', as
   }));
 
   const order = await client.createOrder({
-    pair: 'PRL-USDT',
+    pair: 'BTC-USDT',
     side: 'sell',
     type: 'limit',
     amount: '10',
@@ -96,7 +133,7 @@ test('CoinEx limit order sends the documented v2 request body and signature', as
   });
   const body = calls[0].options.body;
   const expectedBody = JSON.stringify({
-    market: 'PRLUSDT',
+    market: 'BTCUSDT',
     market_type: 'SPOT',
     side: 'sell',
     type: 'limit',
@@ -118,19 +155,19 @@ test('CoinEx market order explicitly denominates amount in the base asset', asyn
   const client = createClient(calls, () => coinExResponse({ order_id: 124 }));
 
   await client.createOrder({
-    pair: 'PRL-USDT',
+    pair: 'BTC-USDT',
     side: 'buy',
     type: 'market',
     amount: '10',
   });
 
   assert.deepEqual(JSON.parse(calls[0].options.body), {
-    market: 'PRLUSDT',
+    market: 'BTCUSDT',
     market_type: 'SPOT',
     side: 'buy',
     type: 'market',
     amount: '10',
-    ccy: 'PRL',
+    ccy: 'BTC',
   });
 });
 

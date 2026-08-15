@@ -5,7 +5,7 @@ import { runCli } from '../src/cli.js';
 test('no command prints help instead of doing nothing', async () => {
   const result = await runWithClient([], {});
   assert.equal(result.code, 0);
-  assert.match(result.output, /SpotPilot 0\.3\.0/);
+  assert.match(result.output, /SpotPilot 0\.5\.0/);
   assert.match(result.output, /node spotpilot price/);
 });
 
@@ -14,7 +14,7 @@ test('--exchange coinex selects the CoinEx client', async () => {
   const stdout = [];
   const stderr = [];
   const code = await runCli(
-    ['price', '--exchange', 'coinex', '--pair', 'PRL-USDT'],
+    ['price', '--exchange', 'coinex', '--pair', 'BTC-USDT'],
     {
       clientFactory: (options) => {
         factoryCalls.push(options);
@@ -39,25 +39,71 @@ test('--exchange coinex selects the CoinEx client', async () => {
 
 test('price prints a human-readable last traded price', async () => {
   const result = await runWithClient(
-    ['price', '--pair', 'PRL-USDT'],
-    { getPrice: async () => ({ price: '0.28' }) },
+    ['price', '--pair', 'BTC-USDT'],
+    { getPrice: async () => ({ price: '60000' }) },
   );
   assert.equal(result.code, 0);
-  assert.match(result.output, /1 PRL = 0\.28 USDT/);
+  assert.match(result.output, /1 BTC = 60000 USDT/);
+});
+
+test('commands require an explicit pair or coin selector', async () => {
+  const price = await runWithClient(['price'], {});
+  const status = await runWithClient(['status'], {});
+  const balance = await runWithClient(['balance'], {});
+
+  assert.match(price.error, /--pair is required/);
+  assert.match(status.error, /--coin is required/);
+  assert.match(balance.error, /--coin is required/);
+});
+
+test('status accepts comma-separated assets and prints an aligned table', async () => {
+  const result = await runWithClient(
+    ['status', '--coin', 'PEARL,USDT'],
+    {
+      displayName: 'CoinEx',
+      getAssetStatuses: async () => ([
+        {
+          asset: 'PEARL',
+          depositEnabled: false,
+          withdrawalEnabled: true,
+          networks: [{
+            network: 'PEARL',
+            depositEnabled: false,
+            withdrawalEnabled: true,
+          }],
+        },
+        {
+          asset: 'USDT',
+          depositEnabled: true,
+          withdrawalEnabled: true,
+          networks: [],
+        },
+      ]),
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.match(result.output, /ASSET  NETWORK  DEPOSIT   WITHDRAWAL/);
+  assert.match(result.output, /PEARL  ALL      DISABLED  ENABLED/);
+  assert.match(result.output, /PEARL  PEARL    DISABLED  ENABLED/);
+  assert.match(result.output, /USDT   ALL      ENABLED   ENABLED/);
+  assert.doesNotMatch(result.output, /\t/);
 });
 
 test('balance prints requested assets including a missing zero balance', async () => {
   const result = await runWithClient(
-    ['balance', '--coin', 'PRL,USDT'],
+    ['balance', '--coin', 'QUAI,RVN'],
     {
       getBalances: async () => [{
-        asset: 'PRL', total: '12', available: '10', locked: '2',
+        asset: 'QUAI', total: '282.85705135', available: '282.85705135', locked: '0',
       }],
     },
   );
   assert.equal(result.code, 0);
-  assert.match(result.output, /PRL\t12\t10\t2/);
-  assert.match(result.output, /USDT\t0\t0\t0/);
+  assert.match(result.output, /ASSET  TOTAL         AVAILABLE     LOCKED/);
+  assert.match(result.output, /QUAI   282\.85705135  282\.85705135  0/);
+  assert.match(result.output, /RVN    0             0             0/);
+  assert.doesNotMatch(result.output, /\t/);
 });
 
 test('market sell checks available balance and submits after --yes', async () => {
@@ -65,7 +111,7 @@ test('market sell checks available balance and submits after --yes', async () =>
   const result = await runWithClient(
     [
       'order', '--type', 'market', '--side', 'sell',
-      '--pair', 'PRL-USDT', '--amount', '10', '--yes',
+      '--pair', 'BTC-USDT', '--amount', '10', '--yes',
     ],
     {
       getBalance: async () => ({ available: '10.5' }),
@@ -77,7 +123,7 @@ test('market sell checks available balance and submits after --yes', async () =>
   );
   assert.equal(result.code, 0);
   assert.deepEqual(submitted, [{
-    pair: 'PRL-USDT', side: 'sell', type: 'market', amount: '10', price: undefined,
+    pair: 'BTC-USDT', side: 'sell', type: 'market', amount: '10', price: undefined,
   }]);
   assert.match(result.output, /Order submitted successfully: id=42/);
 });
@@ -87,7 +133,7 @@ test('insufficient sell balance prevents submission', async () => {
   const result = await runWithClient(
     [
       'order', '--type', 'market', '--side', 'sell',
-      '--amount', '10', '--yes',
+      '--pair', 'BTC-USDT', '--amount', '10', '--yes',
     ],
     {
       getBalance: async () => ({ available: '9.99' }),
@@ -96,7 +142,7 @@ test('insufficient sell balance prevents submission', async () => {
   );
   assert.equal(result.code, 1);
   assert.equal(submitted, false);
-  assert.match(result.error, /Insufficient PRL balance/);
+  assert.match(result.error, /Insufficient BTC balance/);
 });
 
 test('limit price-percent is calculated and dryrun never submits', async () => {
@@ -104,7 +150,7 @@ test('limit price-percent is calculated and dryrun never submits', async () => {
   const result = await runWithClient(
     [
       'order', '--type', 'limit', '--order', 'sell', '--amount', '10',
-      '--price-percent', '10', '--dryrun',
+      '--pair', 'BTC-USDT', '--price-percent', '10', '--dryrun',
     ],
     {
       getPrice: async () => ({ price: '0.28000000' }),
@@ -122,7 +168,7 @@ test('limit order rejects simultaneous price options', async () => {
   const result = await runWithClient(
     [
       'order', '--type', 'limit', '--side', 'sell', '--amount', '10',
-      '--price', '0.28', '--price-percent', '10', '--dryrun',
+      '--pair', 'BTC-USDT', '--price', '0.28', '--price-percent', '10', '--dryrun',
     ],
     {},
   );
@@ -133,7 +179,10 @@ test('limit order rejects simultaneous price options', async () => {
 test('interactive rejection cancels without submission', async () => {
   let submitted = false;
   const result = await runWithClient(
-    ['order', '--type', 'market', '--side', 'sell', '--amount', '1'],
+    [
+      'order', '--type', 'market', '--side', 'sell',
+      '--pair', 'BTC-USDT', '--amount', '1',
+    ],
     {
       getBalance: async () => ({ available: '2' }),
       createOrder: async () => { submitted = true; },
@@ -154,7 +203,7 @@ test('Cloudflare API error is concise and actionable', async () => {
   Object.setPrototypeOf(error, (await import('../src/errors.js')).SafeTradeApiError.prototype);
 
   const result = await runWithClient(
-    ['price'],
+    ['price', '--pair', 'BTC-USDT'],
     { getPrice: async () => { throw error; } },
   );
   assert.equal(result.code, 1);

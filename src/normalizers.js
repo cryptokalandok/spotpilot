@@ -23,7 +23,7 @@ export function splitPair(pair) {
 
   if (!match) {
     throw new SpotPilotValidationError(
-      'Pair must contain a separator, for example PRL-USDT',
+      'Pair must contain a separator, for example BTC-USDT',
     );
   }
 

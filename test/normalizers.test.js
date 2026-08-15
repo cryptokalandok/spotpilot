@@ -7,10 +7,10 @@ import {
 } from '../src/index.js';
 
 test('normalizeMarket accepts common pair separators', () => {
-  assert.equal(normalizeMarket('PRL-USDT'), 'prlusdt');
-  assert.equal(normalizeMarket('PRL/USDT'), 'prlusdt');
-  assert.equal(normalizeMarket('prl_usdt'), 'prlusdt');
-  assert.equal(normalizeMarket('prlusdt'), 'prlusdt');
+  assert.equal(normalizeMarket('BTC-USDT'), 'btcusdt');
+  assert.equal(normalizeMarket('BTC/USDT'), 'btcusdt');
+  assert.equal(normalizeMarket('btc_usdt'), 'btcusdt');
+  assert.equal(normalizeMarket('btcusdt'), 'btcusdt');
 });
 
 test('normalizePositiveDecimal accepts a decimal comma without using Number', () => {

@@ -10,7 +10,8 @@ client/service layer can later be called from an AWS Lambda handler.
 - An API key for balances and orders on the selected exchange
 - No npm runtime dependencies
 
-Public price requests do not require an API key.
+Public price requests do not require an API key. CoinEx status requests use its
+authenticated deposit/withdrawal configuration endpoint.
 
 ## Why `npm install` creates no `node_modules`
 
@@ -26,7 +27,7 @@ No install step is required:
 
 ```bash
 node spotpilot --help
-node spotpilot price --exchange coinex --pair PRL-USDT
+node spotpilot price --exchange coinex --pair BTC-USDT
 ```
 
 To make `spotpilot` available as a command while developing locally:
@@ -39,7 +40,7 @@ spotpilot --help
 Alternatively, every command can be run through npm:
 
 ```bash
-npm run spotpilot -- price --exchange coinex --pair PRL-USDT
+npm run spotpilot -- price --exchange coinex --pair BTC-USDT
 ```
 
 Running `node spotpilot` without a command prints the help screen.
@@ -93,15 +94,35 @@ The following examples select CoinEx explicitly. You can omit
 ### Price
 
 ```bash
-node spotpilot price --exchange coinex --pair PRL-USDT
+node spotpilot price --exchange coinex --pair BTC-USDT
 ```
 
 The displayed price is the ticker's **last traded price**.
 
+### Asset and deposit status
+
+```bash
+node spotpilot status --exchange coinex --coin PEARL,USDT
+node spotpilot status --exchange safetrade --coin BTC,USDT
+```
+
+Deposit and withdrawal availability belongs to an asset and, on some
+exchanges, to a specific blockchain network rather than to a trading pair.
+`--coin` accepts one asset or a comma-separated list. The command prints:
+
+- aggregate deposit and withdrawal availability for every requested asset;
+- network-specific rows when the exchange returns them.
+
+`ENABLED` and `DISABLED` are direct normalized API values. `UNKNOWN` means the
+exchange omitted the relevant field; SpotPilot does not guess. CoinEx status
+requests require `COINEX_API_KEY` and `COINEX_API_SECRET`. SafeTrade's currency
+and market status requests are public, but may still be affected by its
+Cloudflare block.
+
 ### Balances
 
 ```bash
-node spotpilot balance --exchange coinex --coin PRL,USDT
+node spotpilot balance --exchange coinex --coin QUAI,RVN
 ```
 
 Output contains total, available and locked amounts. CoinEx's `frozen` balance
@@ -116,12 +137,12 @@ node spotpilot order \
   --exchange coinex \
   --type market \
   --side sell \
-  --pair PRL-USDT \
-  --amount 10
+  --pair BTC-USDT \
+  --amount 0.001
 ```
 
-`--amount` always means the base-asset amount: in `PRL-USDT`, `--amount 10`
-means 10 PRL for both buys and sells. SpotPilot explicitly sends this
+`--amount` always means the base-asset amount: in `BTC-USDT`, `--amount 0.001`
+means 0.001 BTC for both buys and sells. SpotPilot explicitly sends this
 denomination to CoinEx for market orders.
 
 Before a sell, SpotPilot checks the base asset's available balance. It then
@@ -138,9 +159,9 @@ node spotpilot order \
   --exchange coinex \
   --type limit \
   --side sell \
-  --pair PRL-USDT \
-  --amount 10 \
-  --price 0,28
+  --pair BTC-USDT \
+  --amount 0.001 \
+  --price 60000
 ```
 
 Hungarian decimal commas are accepted for individual numeric arguments and
@@ -153,8 +174,8 @@ node spotpilot order \
   --exchange coinex \
   --type limit \
   --side sell \
-  --pair PRL-USDT \
-  --amount 10 \
+  --pair BTC-USDT \
+  --amount 0.001 \
   --price-percent 10
 ```
 
@@ -163,19 +184,20 @@ calculation uses exact decimal arithmetic and rounds to the number of decimal
 places present in the ticker response. `--price` and `--price-percent` are
 mutually exclusive.
 
-### Dry run
+### Dryrun
 
 ```bash
 node spotpilot order \
   --exchange coinex \
   --type limit \
   --side sell \
-  --amount 10 \
-  --price 0.28 \
+  --pair BTC-USDT \
+  --amount 0.001 \
+  --price 60000 \
   --dryrun
 ```
 
-A dry run performs the required private, read-only balance call and all local
+A dryrun performs the required private, read-only balance call and all local
 validations, but never submits an order. It therefore still needs API
 credentials.
 
@@ -196,12 +218,23 @@ functions or fake clients and verify:
 - SafeTrade and CoinEx HMAC-SHA256 signatures and monotonic timestamps;
 - exact URLs, authentication headers and JSON order bodies;
 - exchange selection through the CLI and factory;
+- pair trading plus asset/network deposit and withdrawal status normalization;
 - market/limit validation and mutually exclusive price options;
 - balance normalization and insufficient-balance rejection;
 - exact decimal and percentage calculations without floating-point rounding;
 - CLI parsing, help, human-readable output, confirmation and dryrun behavior;
 - concise handling of SafeTrade/Cloudflare HTTP 403 pages;
 - structured SafeTrade and CoinEx API errors.
+
+For a fast syntax-only check, run:
+
+```bash
+npm run check
+```
+
+This uses Node's `--check` mode to parse the CLI and source files. No output
+means the syntax is valid. It does not execute the code, call an exchange,
+perform type checking or replace `npm test`.
 
 They deliberately do **not** contact either exchange or create a real order.
 This is why they can pass even when a live API is unavailable. Use one of these
@@ -237,14 +270,15 @@ const client = createExchangeClient({
   env: process.env,
 });
 
-const { price } = await client.getPrice('PRL-USDT');
-const balances = await client.getBalances({ coins: 'PRL,USDT' });
+const { price } = await client.getPrice('BTC-USDT');
+const status = await client.getAssetStatuses('PEARL,USDT');
+const balances = await client.getBalances({ coins: 'BTC,USDT' });
 
 await client.createOrder({
-  pair: 'PRL-USDT',
+  pair: 'BTC-USDT',
   side: 'sell',
   type: 'market',
-  amount: '10',
+  amount: '0.001',
 });
 ```
 
@@ -256,6 +290,7 @@ financial values stay as decimal strings.
 | Capability | SafeTrade | CoinEx |
 | --- | --- | --- |
 | Markets | `GET /trade/public/markets` | `GET /spot/market` |
+| Deposit/withdraw status | `GET /trade/public/currencies` | `GET /assets/deposit-withdraw-config?ccy={asset}` |
 | Ticker | `GET /trade/public/tickers/{market}` | `GET /spot/ticker?market={market}` |
 | Spot balances | `GET /trade/account/balances/spot` | `GET /assets/spot/balance` |
 | Pending orders | `GET /trade/market/orders` | `GET /spot/pending-order` |
@@ -286,6 +321,7 @@ uses `X-COINEX-KEY`, `X-COINEX-SIGN`, `X-COINEX-TIMESTAMP` and
 - [CoinEx authentication](https://docs.coinex.com/api/v2/authorization)
 - [CoinEx ticker endpoint](https://docs.coinex.com/api/v2/spot/market/http/list-market-ticker)
 - [CoinEx spot balance endpoint](https://docs.coinex.com/api/v2/assets/balance/http/get-spot-balance)
+- [CoinEx deposit/withdrawal configuration](https://docs.coinex.com/api/v2/assets/deposit-withdrawal/http/get-deposit-withdrawal-config)
 - [CoinEx create-order endpoint](https://docs.coinex.com/api/v2/spot/order/http/put-order)
 - [SafeTrade API documentation](https://safetrade.com/api)
 - [SafeTrade official example client](https://github.com/safetrade-exchange/example-client)

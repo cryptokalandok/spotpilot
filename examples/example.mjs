@@ -6,10 +6,10 @@ const client = new SafeTradeClient({
 });
 
 try {
-  const price = await client.getPrice('PRL-USDT');
-  console.log(`1 PRL = ${price.price} USDT (last traded price)`);
+  const price = await client.getPrice('BTC-USDT');
+  console.log(`1 BTC = ${price.price} USDT (last traded price)`);
 
-  const balances = await client.getBalances({ coins: 'PRL,USDT' });
+  const balances = await client.getBalances({ coins: 'BTC,USDT' });
   console.table(balances.map(({ raw: _raw, ...balance }) => balance));
 } catch (error) {
   if (error.code === 'CLOUDFLARE_BLOCKED') {
@@ -26,17 +26,17 @@ try {
 // Order creation is deliberately not called in this example.
 // Market sell:
 // await client.createOrder({
-//   pair: 'PRL-USDT',
+//   pair: 'BTC-USDT',
 //   side: 'sell',
 //   type: 'market',
-//   amount: '10',
+//   amount: '0.001',
 // });
 
 // Limit sell (Hungarian decimal comma is accepted and normalized):
 // await client.createOrder({
-//   pair: 'PRL-USDT',
+//   pair: 'BTC-USDT',
 //   side: 'sell',
 //   type: 'limit',
-//   amount: '10',
-//   price: '0,28',
+//   amount: '0.001',
+//   price: '60000',
 // });

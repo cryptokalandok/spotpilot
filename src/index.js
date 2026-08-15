@@ -27,6 +27,11 @@ export {
   multiplyDecimals,
 } from './decimal.js';
 export {
+  extractItems,
+  normalizeAssetTransferStatus,
+  normalizeAvailability,
+} from './status.js';
+export {
   CoinExClient,
   DEFAULT_COINEX_BASE_URL,
   createCoinExSignature,

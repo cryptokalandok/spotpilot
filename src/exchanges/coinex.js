@@ -11,6 +11,9 @@ import {
   normalizePositiveDecimal,
   splitPair,
 } from '../normalizers.js';
+import {
+  normalizeAssetTransferStatus,
+} from '../status.js';
 
 export const DEFAULT_COINEX_BASE_URL = 'https://api.coinex.com/v2';
 
@@ -84,6 +87,40 @@ export class CoinExClient {
       signal,
     });
     return payload.data;
+  }
+
+  async getDepositWithdrawalConfig(coin, options = {}) {
+    const asset = normalizeAsset(coin);
+    const payload = await this.#request('/assets/deposit-withdraw-config', {
+      auth: true,
+      query: { ccy: asset },
+      signal: options.signal,
+    });
+
+    if (!payload.data?.asset) {
+      throw new SpotPilotApiError(
+        `CoinEx returned no deposit/withdrawal status for ${asset}`,
+        {
+          exchange: 'coinex',
+          response: payload,
+          code: 'CURRENCY_NOT_FOUND',
+        },
+      );
+    }
+
+    return normalizeAssetTransferStatus(asset, {
+      ...payload.data.asset,
+      chains: payload.data.chains,
+    });
+  }
+
+  async getAssetStatuses(coins, options = {}) {
+    if (coins === undefined) {
+      throw new SpotPilotValidationError('coins is required');
+    }
+    return Promise.all(normalizeCoinList(coins).map((asset) => (
+      this.getDepositWithdrawalConfig(asset, { signal: options.signal })
+    )));
   }
 
   async getTicker(pair, options = {}) {

@@ -17,8 +17,7 @@ import {
   splitPair,
 } from './normalizers.js';
 
-const VERSION = '0.3.0';
-const DEFAULT_PAIR = 'PRL-USDT';
+const VERSION = '0.5.0';
 const BOOLEAN_OPTIONS = new Set(['help', 'yes', 'dryrun', 'debug']);
 
 export async function runCli(argv, dependencies = {}) {
@@ -77,6 +76,10 @@ export async function runCli(argv, dependencies = {}) {
         assertKnownOptions(options, ['exchange', 'pair', 'debug']);
         await printPrice(client, options, stdout);
         return 0;
+      case 'status':
+        assertKnownOptions(options, ['exchange', 'coin', 'debug']);
+        await printStatus(client, options, stdout);
+        return 0;
       case 'balance':
         assertKnownOptions(options, ['exchange', 'coin', 'debug']);
         await printBalances(client, options, stdout);
@@ -106,7 +109,7 @@ export async function runCli(argv, dependencies = {}) {
 }
 
 async function printPrice(client, options, stdout) {
-  const pair = normalizeDisplayPair(options.pair ?? DEFAULT_PAIR);
+  const pair = normalizeDisplayPair(options.pair);
   const { base, quote } = splitPair(pair);
   const result = await client.getPrice(pair);
   stdout(
@@ -115,29 +118,53 @@ async function printPrice(client, options, stdout) {
   );
 }
 
-async function printBalances(client, options, stdout) {
-  const assets = String(options.coin ?? 'PRL')
-    .split(',')
-    .map(normalizeAsset);
-  const balances = await client.getBalances({ coins: assets });
-  const byAsset = new Map(balances.map((balance) => [balance.asset, balance]));
+async function printStatus(client, options, stdout) {
+  const assets = parseAssetList(options.coin);
+  const statuses = await client.getAssetStatuses(assets);
+  const rows = [];
 
   stdout(`Exchange: ${client.displayName ?? client.exchange}`);
-  stdout('ASSET\tTOTAL\tAVAILABLE\tLOCKED');
-  for (const asset of assets) {
+
+  for (const asset of statuses) {
+    rows.push([
+      asset.asset,
+      'ALL',
+      formatAvailability(asset.depositEnabled),
+      formatAvailability(asset.withdrawalEnabled),
+    ]);
+
+    for (const network of asset.networks ?? []) {
+      rows.push([
+        asset.asset,
+        network.network,
+        formatAvailability(network.depositEnabled),
+        formatAvailability(network.withdrawalEnabled),
+      ]);
+    }
+  }
+
+  printTable(['ASSET', 'NETWORK', 'DEPOSIT', 'WITHDRAWAL'], rows, stdout);
+}
+
+async function printBalances(client, options, stdout) {
+  const assets = parseAssetList(options.coin);
+  const balances = await client.getBalances({ coins: assets });
+  const byAsset = new Map(balances.map((balance) => [balance.asset, balance]));
+  const rows = assets.map((asset) => {
     const balance = byAsset.get(asset) ?? {
       total: '0',
       available: '0',
       locked: '0',
     };
-    stdout(
-      `${asset}\t${balance.total}\t${balance.available}\t${balance.locked}`,
-    );
-  }
+    return [asset, balance.total, balance.available, balance.locked];
+  });
+
+  stdout(`Exchange: ${client.displayName ?? client.exchange}`);
+  printTable(['ASSET', 'TOTAL', 'AVAILABLE', 'LOCKED'], rows, stdout);
 }
 
 async function submitOrder(client, options, { stdout, confirm }) {
-  const pair = normalizeDisplayPair(options.pair ?? DEFAULT_PAIR);
+  const pair = normalizeDisplayPair(options.pair);
   const { base, quote } = splitPair(pair);
   const type = normalizeChoice(options.type, 'type', ['market', 'limit']);
   const sideOption = resolveSideOption(options);
@@ -309,8 +336,20 @@ function normalizeChoice(value, name, allowed) {
 }
 
 function normalizeDisplayPair(value) {
+  requireOption(value, '--pair');
   const { base, quote } = splitPair(value);
   return `${base}-${quote}`;
+}
+
+function parseAssetList(value) {
+  requireOption(value, '--coin');
+  return String(value).split(',').map(normalizeAsset);
+}
+
+function requireOption(value, name) {
+  if (value === undefined || String(value).trim() === '') {
+    throw new SpotPilotValidationError(`${name} is required`);
+  }
 }
 
 function assertKnownOptions(options, allowed) {
@@ -380,6 +419,31 @@ function formatPercent(percent) {
   return percent.startsWith('-') ? `${percent}%` : `+${percent}%`;
 }
 
+function formatAvailability(value) {
+  if (value === true) {
+    return 'ENABLED';
+  }
+  if (value === false) {
+    return 'DISABLED';
+  }
+  return 'UNKNOWN';
+}
+
+function printTable(headers, rows, stdout) {
+  const normalizedRows = [headers, ...rows].map((row) => (
+    row.map((cell) => String(cell))
+  ));
+  const widths = headers.map((_, column) => Math.max(
+    ...normalizedRows.map((row) => row[column]?.length ?? 0),
+  ));
+
+  for (const row of normalizedRows) {
+    stdout(row.map((cell, column) => (
+      cell.padEnd(widths[column])
+    )).join('  ').trimEnd());
+  }
+}
+
 function formatCliError(error) {
   if (error instanceof SpotPilotApiError && error.code === 'CLOUDFLARE_BLOCKED') {
     const ray = error.rayId ? ` Cloudflare Ray ID: ${error.rayId}.` : '';
@@ -399,33 +463,39 @@ Usage:
   node spotpilot <command> [options]
 
 Commands:
-  price      Show the last traded price (default pair: PRL-USDT)
+  price      Show the last traded price for a pair
+  status     Show asset and network deposit/withdrawal status
   balance    Show total, available and locked balances
   order      Validate and submit a market or limit order
 
 Examples:
-  node spotpilot price --exchange coinex --pair PRL-USDT
-  node spotpilot balance --exchange coinex --coin PRL,USDT
-  node spotpilot order --exchange coinex --type market --side sell --amount 10
-  node spotpilot order --exchange coinex --type limit --side sell --amount 10 --price-percent 10
-  node spotpilot order --exchange coinex --type limit --side sell --amount 10 --price 0,28 --dryrun
+  node spotpilot price --exchange coinex --pair BTC-USDT
+  node spotpilot status --exchange coinex --coin PEARL,USDT
+  node spotpilot balance --exchange coinex --coin QUAI,RVN
+  node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --amount 0.001
+  node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price-percent 10
+  node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price 60000 --dryrun
 
 Run "node spotpilot <command> --help" for command-specific help.`;
 }
 
 function commandHelp(command) {
   const help = {
-    price: `Usage: node spotpilot price [--exchange safetrade|coinex] [--pair PRL-USDT]`,
-    balance: `Usage: node spotpilot balance [--exchange safetrade|coinex] [--coin PRL,USDT]`,
+    price: `Usage: node spotpilot price [--exchange safetrade|coinex] --pair BTC-USDT`,
+    status: `Usage: node spotpilot status [--exchange safetrade|coinex] --coin PEARL,USDT
+
+Shows deposit/withdrawal availability for one or more comma-separated assets.
+Network-specific rows are included when the exchange provides them.`,
+    balance: `Usage: node spotpilot balance [--exchange safetrade|coinex] --coin QUAI,RVN`,
     order: `Usage: node spotpilot order --type market|limit --side buy|sell [options]
 
 Options:
   --exchange coinex     Exchange (default: SPOTPILOT_EXCHANGE or safetrade)
-  --pair PRL-USDT       Trading pair (default: PRL-USDT)
-  --amount 10           Base-asset amount; required
+  --pair BTC-USDT       Trading pair; required
+  --amount 0.001        Base-asset amount; required
   --price 0.28          Exact limit price
   --price-percent 10    Limit price relative to last traded price
-  --dryrun             Validate without submitting
+  --dryrun              Validate without submitting
   --yes                 Skip the interactive confirmation
   --order sell          Compatibility alias for --side sell`,
   };
