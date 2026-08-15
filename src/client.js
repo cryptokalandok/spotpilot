@@ -10,6 +10,7 @@ import {
   normalizeBalancesPayload,
   normalizeMarket,
   normalizePositiveDecimal,
+  splitPair,
 } from './normalizers.js';
 import {
   extractItems,
@@ -65,6 +66,40 @@ export class SafeTradeClient {
     return this.#request('/trade/public/markets', {
       signal: options.signal,
     });
+  }
+
+  async getMarketInfo(pair, options = {}) {
+    const market = normalizeMarket(pair);
+    const payload = await this.getMarkets({ signal: options.signal });
+    const markets = extractItems(payload, ['markets']);
+    const raw = markets.find((item) => safeTradeMarketId(item) === market);
+
+    if (!raw) {
+      throw new SafeTradeApiError(
+        `SafeTrade returned no market metadata for ${pair}`,
+        {
+          exchange: 'safetrade',
+          response: payload,
+          code: 'MARKET_NOT_FOUND',
+        },
+      );
+    }
+
+    return {
+      pair,
+      market,
+      basePrecision: normalizePrecision(
+        raw.amount_precision,
+        'SafeTrade amount_precision',
+      ),
+      quotePrecision: normalizePrecision(
+        raw.price_precision,
+        'SafeTrade price_precision',
+      ),
+      minAmount: optionalPositiveDecimal(raw.min_amount, 'SafeTrade min_amount'),
+      marketBuyAmountAsset: 'base',
+      raw,
+    };
   }
 
   async getCurrencies(options = {}) {
@@ -158,13 +193,22 @@ export class SafeTradeClient {
     side,
     type,
     amount,
+    amountAsset,
     price,
     signal,
   }) {
     const market = normalizeMarket(pair);
+    const { base } = splitPair(pair);
     const normalizedSide = normalizeEnum(side, 'side', ['buy', 'sell']);
     const normalizedType = normalizeEnum(type, 'type', ['market', 'limit']);
     const normalizedAmount = normalizePositiveDecimal(amount, 'amount');
+    const normalizedAmountAsset = normalizeAsset(amountAsset ?? base);
+
+    if (normalizedAmountAsset !== base) {
+      throw new SafeTradeValidationError(
+        `SafeTrade order amount must be denominated in ${base}`,
+      );
+    }
 
     if (normalizedType === 'limit' && price === undefined) {
       throw new SafeTradeValidationError('price is required for a limit order');
@@ -372,6 +416,47 @@ function safeTradeAssetCode(currency) {
     return value === undefined ? null : normalizeAsset(String(value));
   } catch {
     return null;
+  }
+}
+
+function safeTradeMarketId(item) {
+  const value = item?.id ?? item?.market ?? (
+    item?.base_unit && item?.quote_unit
+      ? `${item.base_unit}-${item.quote_unit}`
+      : undefined
+  );
+  try {
+    return value === undefined ? null : normalizeMarket(String(value));
+  } catch {
+    return null;
+  }
+}
+
+function normalizePrecision(value, name) {
+  const precision = Number(value);
+  if (!Number.isInteger(precision) || precision < 0 || precision > 100) {
+    throw new SafeTradeApiError(`${name} is missing or invalid`, {
+      exchange: 'safetrade',
+      response: value,
+      code: 'INVALID_MARKET_METADATA',
+    });
+  }
+  return precision;
+}
+
+function optionalPositiveDecimal(value, name) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  try {
+    return normalizePositiveDecimal(value, name);
+  } catch (cause) {
+    throw new SafeTradeApiError(`${name} is invalid`, {
+      exchange: 'safetrade',
+      response: value,
+      code: 'INVALID_MARKET_METADATA',
+      cause,
+    });
   }
 }
 

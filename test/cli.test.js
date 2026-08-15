@@ -5,7 +5,7 @@ import { runCli } from '../src/cli.js';
 test('no command prints help instead of doing nothing', async () => {
   const result = await runWithClient([], {});
   assert.equal(result.code, 0);
-  assert.match(result.output, /SpotPilot 0\.5\.1/);
+  assert.match(result.output, /SpotPilot 0\.6\.0/);
   assert.match(result.output, /node spotpilot price/);
 });
 
@@ -171,6 +171,121 @@ test('insufficient sell balance prevents submission', async () => {
   assert.equal(result.code, 1);
   assert.equal(submitted, false);
   assert.match(result.error, /Insufficient BTC balance/);
+});
+
+test('balance-percent 100 sells the available base balance rounded down', async () => {
+  const submitted = [];
+  const result = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'sell',
+      '--pair', 'BTC-USDT', '--balance-percent', '100', '--yes',
+    ],
+    {
+      getMarketInfo: async () => ({
+        basePrecision: 8,
+        quotePrecision: 2,
+        minAmount: '0.0005',
+        marketBuyAmountAsset: 'base',
+      }),
+      getBalance: async (asset) => {
+        assert.equal(asset, 'BTC');
+        return { available: '1.234567899' };
+      },
+      createOrder: async (order) => {
+        submitted.push(order);
+        return { id: 43 };
+      },
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.equal(submitted[0].amount, '1.23456789');
+  assert.equal(submitted[0].amountAsset, undefined);
+  assert.match(result.output, /100% of 1\.234567899 BTC = 1\.23456789 BTC/);
+});
+
+test('SafeTrade-style market buy calculates base amount with the buy reserve', async () => {
+  const submitted = [];
+  const result = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'buy',
+      '--pair', 'BTC-USDT', '--balance-percent', '100', '--yes',
+    ],
+    {
+      getMarketInfo: async () => ({
+        basePrecision: 4,
+        quotePrecision: 2,
+        minAmount: '0.0005',
+        marketBuyAmountAsset: 'base',
+      }),
+      getBalance: async (asset) => {
+        assert.equal(asset, 'USDT');
+        return { available: '100' };
+      },
+      getPrice: async () => ({ price: '20' }),
+      createOrder: async (order) => {
+        submitted.push(order);
+        return { id: 44 };
+      },
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.equal(submitted[0].amount, '4.975');
+  assert.equal(submitted[0].amountAsset, undefined);
+  assert.match(result.output, /Buy reserve: 0\.5%.*order budget 99\.5 USDT/);
+  assert.match(result.output, /Calculated order amount: 4\.975 BTC/);
+});
+
+test('CoinEx-style market buy submits a quote-denominated balance allocation', async () => {
+  const submitted = [];
+  const result = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'buy',
+      '--pair', 'BTC-USDT', '--balance-percent', '100', '--yes',
+    ],
+    {
+      getMarketInfo: async () => ({
+        basePrecision: 8,
+        quotePrecision: 2,
+        minAmount: '0.0005',
+        marketBuyAmountAsset: 'quote',
+      }),
+      getBalance: async () => ({ available: '100.129' }),
+      createOrder: async (order) => {
+        submitted.push(order);
+        return { order_id: 45 };
+      },
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.equal(submitted[0].amount, '99.61');
+  assert.equal(submitted[0].amountAsset, 'USDT');
+  assert.match(result.output, /quote-denominated by the exchange/);
+  assert.match(result.output, /Order: BUY BTC-USDT MARKET using 99\.61 USDT/);
+});
+
+test('order sizing options are mutually exclusive and percentage is capped', async () => {
+  const both = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'sell', '--pair', 'BTC-USDT',
+      '--amount', '1', '--balance-percent', '100', '--dryrun',
+    ],
+    {},
+  );
+  const tooHigh = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'sell', '--pair', 'BTC-USDT',
+      '--balance-percent', '100.01', '--dryrun',
+    ],
+    {},
+  );
+
+  assert.equal(both.code, 1);
+  assert.match(both.error, /exactly one of --amount or --balance-percent/);
+  assert.equal(tooHigh.code, 1);
+  assert.match(tooHigh.error, /at most 100/);
 });
 
 test('limit price-percent is calculated and dryrun never submits', async () => {

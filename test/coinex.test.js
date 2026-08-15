@@ -51,6 +51,29 @@ test('CoinEx getPrice uses the public v2 ticker without authentication', async (
   assert.equal(result.price, '60000');
 });
 
+test('CoinEx getMarketInfo exposes precision and quote market-buy support', async () => {
+  const calls = [];
+  const client = createClient(calls, () => coinExResponse([{
+    market: 'BTCUSDT',
+    min_amount: '0.0005',
+    base_ccy: 'BTC',
+    quote_ccy: 'USDT',
+    base_ccy_precision: 8,
+    quote_ccy_precision: 2,
+  }]));
+
+  const result = await client.getMarketInfo('BTC-USDT');
+
+  assert.equal(
+    calls[0].url,
+    'https://api.coinex.com/v2/spot/market?market=BTCUSDT',
+  );
+  assert.equal(result.basePrecision, 8);
+  assert.equal(result.quotePrecision, 2);
+  assert.equal(result.minAmount, '0.0005');
+  assert.equal(result.marketBuyAmountAsset, 'quote');
+});
+
 test('CoinEx balances are signed and normalized', async () => {
   const calls = [];
   const client = createClient(calls, () => coinExResponse([
@@ -168,6 +191,28 @@ test('CoinEx market order explicitly denominates amount in the base asset', asyn
     type: 'market',
     amount: '10',
     ccy: 'BTC',
+  });
+});
+
+test('CoinEx market buy can denominate amount in the quote asset', async () => {
+  const calls = [];
+  const client = createClient(calls, () => coinExResponse({ order_id: 125 }));
+
+  await client.createOrder({
+    pair: 'BTC-USDT',
+    side: 'buy',
+    type: 'market',
+    amount: '100',
+    amountAsset: 'USDT',
+  });
+
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    market: 'BTCUSDT',
+    market_type: 'SPOT',
+    side: 'buy',
+    type: 'market',
+    amount: '100',
+    ccy: 'USDT',
   });
 });
 

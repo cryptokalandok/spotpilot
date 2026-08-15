@@ -30,7 +30,10 @@ export {
 export {
   applyPercent,
   compareDecimals,
+  divideDecimals,
   multiplyDecimals,
+  percentageOf,
+  subtractDecimals,
 } from './decimal.js';
 export {
   extractItems,

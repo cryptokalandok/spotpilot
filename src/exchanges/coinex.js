@@ -89,6 +89,42 @@ export class CoinExClient {
     return payload.data;
   }
 
+  async getMarketInfo(pair, options = {}) {
+    const market = normalizeCoinExMarket(pair);
+    const markets = await this.getMarkets({
+      pairs: [pair],
+      signal: options.signal,
+    });
+    const raw = markets?.find?.((item) => item.market === market);
+
+    if (!raw) {
+      throw new SpotPilotApiError(
+        `CoinEx returned no market metadata for ${pair}`,
+        {
+          exchange: 'coinex',
+          response: markets,
+          code: 'MARKET_NOT_FOUND',
+        },
+      );
+    }
+
+    return {
+      pair,
+      market,
+      basePrecision: normalizePrecision(
+        raw.base_ccy_precision,
+        'CoinEx base_ccy_precision',
+      ),
+      quotePrecision: normalizePrecision(
+        raw.quote_ccy_precision,
+        'CoinEx quote_ccy_precision',
+      ),
+      minAmount: optionalPositiveDecimal(raw.min_amount, 'CoinEx min_amount'),
+      marketBuyAmountAsset: 'quote',
+      raw,
+    };
+  }
+
   async getDepositWithdrawalConfig(coin, options = {}) {
     const asset = normalizeAsset(coin);
     const payload = await this.#request('/assets/deposit-withdraw-config', {
@@ -215,6 +251,7 @@ export class CoinExClient {
     side,
     type,
     amount,
+    amountAsset,
     price,
     clientId,
     signal,
@@ -223,6 +260,19 @@ export class CoinExClient {
     const normalizedSide = normalizeChoice(side, 'side', ['buy', 'sell']);
     const normalizedType = normalizeChoice(type, 'type', ['market', 'limit']);
     const normalizedAmount = normalizePositiveDecimal(amount, 'amount');
+    const { base, quote } = splitPair(pair);
+    const normalizedAmountAsset = normalizeAsset(amountAsset ?? base);
+
+    if (![base, quote].includes(normalizedAmountAsset)) {
+      throw new SpotPilotValidationError(
+        `amountAsset must be ${base} or ${quote}`,
+      );
+    }
+    if (normalizedType === 'limit' && normalizedAmountAsset !== base) {
+      throw new SpotPilotValidationError(
+        `CoinEx limit-order amount must be denominated in ${base}`,
+      );
+    }
 
     if (normalizedType === 'limit' && price === undefined) {
       throw new SpotPilotValidationError('price is required for a limit order');
@@ -250,9 +300,7 @@ export class CoinExClient {
     };
 
     if (normalizedType === 'market') {
-      // CoinEx lets callers choose whether market-order amount is denominated
-      // in the base or quote asset. SpotPilot consistently uses the base asset.
-      body.ccy = splitPair(pair).base;
+      body.ccy = normalizedAmountAsset;
     } else {
       body.price = normalizePositiveDecimal(price, 'price');
     }
@@ -437,6 +485,34 @@ function normalizeChoice(value, name, allowed) {
     );
   }
   return normalized;
+}
+
+function normalizePrecision(value, name) {
+  const precision = Number(value);
+  if (!Number.isInteger(precision) || precision < 0 || precision > 100) {
+    throw new SpotPilotApiError(`${name} is missing or invalid`, {
+      exchange: 'coinex',
+      response: value,
+      code: 'INVALID_MARKET_METADATA',
+    });
+  }
+  return precision;
+}
+
+function optionalPositiveDecimal(value, name) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  try {
+    return normalizePositiveDecimal(value, name);
+  } catch (cause) {
+    throw new SpotPilotApiError(`${name} is invalid`, {
+      exchange: 'coinex',
+      response: value,
+      code: 'INVALID_MARKET_METADATA',
+      cause,
+    });
+  }
 }
 
 function normalizeCoinList(coins) {

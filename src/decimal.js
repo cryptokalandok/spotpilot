@@ -16,6 +16,53 @@ export function multiplyDecimals(left, right) {
   return formatDecimal(a.coefficient * b.coefficient, a.scale + b.scale, true);
 }
 
+export function subtractDecimals(left, right) {
+  const a = parseDecimal(left);
+  const b = parseDecimal(right);
+  const scale = Math.max(a.scale, b.scale);
+  const aScaled = a.coefficient * 10n ** BigInt(scale - a.scale);
+  const bScaled = b.coefficient * 10n ** BigInt(scale - b.scale);
+
+  return formatDecimal(aScaled - bScaled, scale, true);
+}
+
+export function divideDecimals(left, right, scale) {
+  const a = parseDecimal(left);
+  const b = parseDecimal(right);
+
+  if (!Number.isInteger(scale) || scale < 0 || scale > 100) {
+    throw new SpotPilotValidationError(
+      'Decimal division scale must be an integer between 0 and 100',
+    );
+  }
+  if (b.coefficient === 0n) {
+    throw new SpotPilotValidationError('Cannot divide by zero');
+  }
+
+  const exponent = b.scale + scale - a.scale;
+  let numerator = a.coefficient;
+  let denominator = b.coefficient;
+
+  if (exponent >= 0) {
+    numerator *= 10n ** BigInt(exponent);
+  } else {
+    denominator *= 10n ** BigInt(-exponent);
+  }
+
+  // Integer division intentionally rounds down for the positive financial
+  // values accepted here, so a calculated order never exceeds its budget.
+  return formatDecimal(numerator / denominator, scale, true);
+}
+
+export function percentageOf(value, percent, scale) {
+  const normalizedPercent = parseDecimal(percent);
+  if (normalizedPercent.coefficient <= 0n) {
+    throw new SpotPilotValidationError('percent must be greater than zero');
+  }
+
+  return divideDecimals(multiplyDecimals(value, percent), '100', scale);
+}
+
 export function applyPercent(value, percent) {
   const price = parseDecimal(value);
   const adjustment = parseDecimal(percent, { signed: true });

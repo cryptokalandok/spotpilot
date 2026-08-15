@@ -74,6 +74,7 @@ the address order returned by the operating system's resolver.
 Optional variables:
 
 ```dotenv
+SPOTPILOT_BUY_RESERVE_PERCENT=0.5
 SPOTPILOT_TIMEOUT_MS=15000
 SAFETRADE_BASE_URL=https://safe.trade/api/v2
 COINEX_BASE_URL=https://api.coinex.com/v2
@@ -143,12 +144,64 @@ node spotpilot order \
 means 0.001 BTC for both buys and sells. SpotPilot explicitly sends this
 denomination to CoinEx for market orders.
 
+Every order requires exactly one sizing option: either an exact `--amount` or
+`--balance-percent`. They cannot be used together.
+
 Before a sell, SpotPilot checks the base asset's available balance. It then
 shows an order summary and asks for confirmation. Use `--yes` only for an
 intentional non-interactive submission.
 
 The original `--order sell` spelling is accepted as a compatibility alias, but
 `--side sell` is the preferred terminology.
+
+### Order from an available-balance percentage
+
+Sell all available base asset:
+
+```bash
+node spotpilot order \
+  --exchange safetrade \
+  --type market \
+  --side sell \
+  --pair BTC-USDT \
+  --balance-percent 100
+```
+
+Use the available quote balance for a buy:
+
+```bash
+node spotpilot order \
+  --exchange safetrade \
+  --type market \
+  --side buy \
+  --pair BTC-USDT \
+  --balance-percent 100 \
+  --dryrun
+```
+
+`--balance-percent` accepts a value greater than zero and at most 100. Its
+meaning follows the order side:
+
+| Side | Balance used |
+| --- | --- |
+| `sell` | Available base asset, such as BTC in `BTC-USDT` |
+| `buy` | Available quote asset, such as USDT in `BTC-USDT` |
+
+Buy orders keep 0.5% of the selected quote allocation by default as a visible
+safety reserve for fees, rounding and market movement. Override it per command
+with `--reserve-percent`, or set `SPOTPILOT_BUY_RESERVE_PERCENT` in `.env`.
+Use `--reserve-percent 0` only when you intentionally want SpotPilot to attempt
+using the complete selected quote allocation.
+
+The CLI fetches the market's amount and price precision before calculating an
+order, then rounds the result down so it cannot exceed the selected budget. A
+calculated base amount below the exchange's advertised minimum is rejected
+locally. The confirmation summary shows the available balance, allocation,
+reserve, final budget and calculated order amount.
+
+For CoinEx market buys, SpotPilot sends the calculated budget in the quote
+asset directly. SafeTrade market buys and all limit buys are converted to a
+base-asset amount using the last traded or selected limit price.
 
 ### Limit order with an exact price
 
@@ -196,8 +249,8 @@ node spotpilot order \
 ```
 
 A dryrun performs the required private, read-only balance call and all local
-validations, but never submits an order. It therefore still needs API
-credentials.
+validations, including balance-percentage sizing and market-precision lookup,
+but never submits an order. It therefore still needs API credentials.
 
 For buy orders, SpotPilot estimates the required quote balance from the limit
 price or last traded price. The estimate excludes fees and market-order
@@ -221,6 +274,7 @@ functions or fake clients and verify:
 - market/limit validation and mutually exclusive price options;
 - balance normalization and insufficient-balance rejection;
 - exact decimal and percentage calculations without floating-point rounding;
+- balance-percentage allocation, buy reserve and downward amount rounding;
 - CLI parsing, help, human-readable output, confirmation and dryrun behavior;
 - concise handling of SafeTrade/Cloudflare HTTP 403 pages;
 - structured SafeTrade and CoinEx API errors.
@@ -291,6 +345,19 @@ await client.createOrder({
   side: 'sell',
   type: 'market',
   amount: '0.001',
+});
+```
+
+CoinEx market orders may also explicitly use the quote asset as their amount
+denomination:
+
+```js
+await client.createOrder({
+  pair: 'BTC-USDT',
+  side: 'buy',
+  type: 'market',
+  amount: '100',
+  amountAsset: 'USDT',
 });
 ```
 

@@ -2,7 +2,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as processStdin, stdout as processStdout } from 'node:process';
-import { compareDecimals, applyPercent, multiplyDecimals } from './decimal.js';
+import {
+  applyPercent,
+  compareDecimals,
+  divideDecimals,
+  multiplyDecimals,
+  percentageOf,
+  subtractDecimals,
+} from './decimal.js';
 import {
   SpotPilotApiError,
   SpotPilotValidationError,
@@ -18,7 +25,8 @@ import {
 } from './normalizers.js';
 import { configureDnsResultOrder } from './network.js';
 
-const VERSION = '0.5.1';
+const VERSION = '0.6.0';
+const DEFAULT_BUY_RESERVE_PERCENT = '0.5';
 const BOOLEAN_OPTIONS = new Set(['help', 'yes', 'dryrun', 'debug']);
 
 export async function runCli(argv, dependencies = {}) {
@@ -92,11 +100,13 @@ export async function runCli(argv, dependencies = {}) {
       case 'order':
         assertKnownOptions(options, [
           'exchange', 'type', 'side', 'order', 'pair', 'amount', 'price',
-          'price-percent', 'yes', 'dryrun', 'debug',
+          'balance-percent', 'reserve-percent', 'price-percent', 'yes',
+          'dryrun', 'debug',
         ]);
         await submitOrder(client, options, {
           stdout,
           confirm: dependencies.confirm ?? defaultConfirm,
+          buyReservePercent: config.SPOTPILOT_BUY_RESERVE_PERCENT,
         });
         return 0;
       default:
@@ -168,15 +178,34 @@ async function printBalances(client, options, stdout) {
   printTable(['ASSET', 'TOTAL', 'AVAILABLE', 'LOCKED'], rows, stdout);
 }
 
-async function submitOrder(client, options, { stdout, confirm }) {
+async function submitOrder(
+  client,
+  options,
+  { stdout, confirm, buyReservePercent },
+) {
   const pair = normalizeDisplayPair(options.pair);
   const { base, quote } = splitPair(pair);
   const type = normalizeChoice(options.type, 'type', ['market', 'limit']);
   const sideOption = resolveSideOption(options);
   const side = normalizeChoice(sideOption, 'side', ['buy', 'sell']);
-  const amount = normalizePositiveDecimal(options.amount, 'amount');
+  const hasAmount = options.amount !== undefined;
+  const hasBalancePercent = options['balance-percent'] !== undefined;
   const hasPrice = options.price !== undefined;
   const hasPricePercent = options['price-percent'] !== undefined;
+
+  if (hasAmount === hasBalancePercent) {
+    throw new SpotPilotValidationError(
+      'Use exactly one of --amount or --balance-percent',
+    );
+  }
+  if (
+    options['reserve-percent'] !== undefined &&
+    (!hasBalancePercent || side !== 'buy')
+  ) {
+    throw new SpotPilotValidationError(
+      '--reserve-percent can only be used with buy orders sized by --balance-percent',
+    );
+  }
 
   if (hasPrice && hasPricePercent) {
     throw new SpotPilotValidationError(
@@ -198,6 +227,10 @@ async function submitOrder(client, options, { stdout, confirm }) {
 
   let price;
   let marketPrice;
+  let amount = hasAmount
+    ? normalizePositiveDecimal(options.amount, 'amount')
+    : undefined;
+  let amountAsset;
 
   if (hasPrice) {
     price = normalizePositiveDecimal(options.price, 'price');
@@ -210,15 +243,22 @@ async function submitOrder(client, options, { stdout, confirm }) {
     );
   }
 
-  if (side === 'sell') {
-    const balance = await client.getBalance(base);
-    const available = balance?.available ?? '0';
-    if (compareDecimals(available, amount) < 0) {
-      throw new SpotPilotValidationError(
-        `Insufficient ${base} balance: ${available} available, ${amount} required`,
-      );
-    }
-    stdout(`Balance check: ${available} ${base} available`);
+  if (hasBalancePercent) {
+    ({ amount, amountAsset, marketPrice } = await resolveBalancePercentOrder({
+      client,
+      options,
+      pair,
+      base,
+      quote,
+      type,
+      side,
+      price,
+      marketPrice,
+      buyReservePercent,
+      stdout,
+    }));
+  } else if (side === 'sell') {
+    await checkSellBalance(client, base, amount, stdout);
   } else {
     if (!price) {
       marketPrice = marketPrice ?? await client.getPrice(pair);
@@ -237,13 +277,20 @@ async function submitOrder(client, options, { stdout, confirm }) {
     );
   }
 
-  const summary = [
-    side.toUpperCase(),
-    amount,
-    pair,
-    type.toUpperCase(),
-    price ? `@ ${price} ${quote}` : '',
-  ].filter(Boolean).join(' ');
+  const summary = amountAsset === quote
+    ? [
+      side.toUpperCase(),
+      pair,
+      type.toUpperCase(),
+      `using ${amount} ${quote}`,
+    ].join(' ')
+    : [
+      side.toUpperCase(),
+      amount,
+      pair,
+      type.toUpperCase(),
+      price ? `@ ${price} ${quote}` : '',
+    ].filter(Boolean).join(' ');
   stdout(`Exchange: ${client.displayName ?? client.exchange}`);
   stdout(`Order: ${summary}`);
 
@@ -260,16 +307,173 @@ async function submitOrder(client, options, { stdout, confirm }) {
     }
   }
 
-  const order = await client.createOrder({
+  const orderRequest = {
     pair,
     side,
     type,
     amount,
     price,
-  });
+  };
+  if (amountAsset !== undefined) {
+    orderRequest.amountAsset = amountAsset;
+  }
+
+  const order = await client.createOrder(orderRequest);
   const id = order?.id ?? order?.order_id ?? order?.uuid ?? 'unknown';
   const state = order?.state ? `, state=${order.state}` : '';
   stdout(`Order submitted successfully: id=${id}${state}`);
+}
+
+async function resolveBalancePercentOrder({
+  client,
+  options,
+  pair,
+  base,
+  quote,
+  type,
+  side,
+  price,
+  marketPrice,
+  buyReservePercent,
+  stdout,
+}) {
+  const balancePercent = normalizeBalancePercent(options['balance-percent']);
+  if (typeof client.getMarketInfo !== 'function') {
+    throw new SpotPilotValidationError(
+      'The selected exchange client does not provide market precision metadata',
+    );
+  }
+
+  const marketInfo = await client.getMarketInfo(pair);
+  const balanceAsset = side === 'sell' ? base : quote;
+  const balancePrecision = side === 'sell'
+    ? marketInfo.basePrecision
+    : marketInfo.quotePrecision;
+  const balance = await client.getBalance(balanceAsset);
+  const available = balance?.available ?? '0';
+  const allocation = percentageOf(
+    available,
+    balancePercent,
+    balancePrecision,
+  );
+
+  if (compareDecimals(allocation, '0') <= 0) {
+    throw new SpotPilotValidationError(
+      `${balancePercent}% of the available ${balanceAsset} balance rounds down to zero`,
+    );
+  }
+
+  stdout(
+    `Balance allocation: ${balancePercent}% of ${available} ${balanceAsset} = ` +
+    `${allocation} ${balanceAsset}`,
+  );
+
+  if (side === 'sell') {
+    assertMinimumAmount(allocation, marketInfo, base);
+    return { amount: allocation, amountAsset: undefined, marketPrice };
+  }
+
+  const reservePercent = normalizeReservePercent(
+    options['reserve-percent'] ??
+    buyReservePercent ??
+    DEFAULT_BUY_RESERVE_PERCENT,
+  );
+  const spendPercent = subtractDecimals('100', reservePercent);
+  const budget = percentageOf(
+    allocation,
+    spendPercent,
+    marketInfo.quotePrecision,
+  );
+
+  if (compareDecimals(budget, '0') <= 0) {
+    throw new SpotPilotValidationError(
+      `The ${quote} order budget rounds down to zero after applying the reserve`,
+    );
+  }
+
+  stdout(
+    `Buy reserve: ${reservePercent}% of the selected allocation; ` +
+    `order budget ${budget} ${quote}`,
+  );
+
+  if (type === 'market' && marketInfo.marketBuyAmountAsset === 'quote') {
+    stdout(
+      `Market-buy amount: ${budget} ${quote} (quote-denominated by the exchange)`,
+    );
+    return { amount: budget, amountAsset: quote, marketPrice };
+  }
+
+  if (!price) {
+    marketPrice = marketPrice ?? await client.getPrice(pair);
+  }
+  const referencePrice = price ?? marketPrice.price;
+  const amount = divideDecimals(
+    budget,
+    referencePrice,
+    marketInfo.basePrecision,
+  );
+
+  if (compareDecimals(amount, '0') <= 0) {
+    throw new SpotPilotValidationError(
+      `The calculated ${base} order amount rounds down to zero`,
+    );
+  }
+  assertMinimumAmount(amount, marketInfo, base);
+  stdout(
+    `Calculated order amount: ${amount} ${base} using ` +
+    `${referencePrice} ${quote} per ${base}`,
+  );
+
+  return { amount, amountAsset: undefined, marketPrice };
+}
+
+async function checkSellBalance(client, base, amount, stdout) {
+  const balance = await client.getBalance(base);
+  const available = balance?.available ?? '0';
+  if (compareDecimals(available, amount) < 0) {
+    throw new SpotPilotValidationError(
+      `Insufficient ${base} balance: ${available} available, ${amount} required`,
+    );
+  }
+  stdout(`Balance check: ${available} ${base} available`);
+}
+
+function assertMinimumAmount(amount, marketInfo, base) {
+  if (
+    marketInfo.minAmount !== null &&
+    marketInfo.minAmount !== undefined &&
+    compareDecimals(amount, marketInfo.minAmount) < 0
+  ) {
+    throw new SpotPilotValidationError(
+      `Calculated ${base} amount ${amount} is below the market minimum ` +
+      `${marketInfo.minAmount}`,
+    );
+  }
+}
+
+function normalizeBalancePercent(value) {
+  const percent = normalizePositiveDecimal(value, 'balance-percent');
+  if (compareDecimals(percent, '100') > 0) {
+    throw new SpotPilotValidationError(
+      'balance-percent must be greater than 0 and at most 100',
+    );
+  }
+  return percent;
+}
+
+function normalizeReservePercent(value) {
+  const percent = String(value).trim().replace(',', '.');
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(percent)) {
+    throw new SpotPilotValidationError(
+      'reserve-percent must be a decimal from 0 up to, but not including, 100',
+    );
+  }
+  if (compareDecimals(percent, '100') >= 0) {
+    throw new SpotPilotValidationError(
+      'reserve-percent must be a decimal from 0 up to, but not including, 100',
+    );
+  }
+  return percent;
 }
 
 function parseOptions(args) {
@@ -478,6 +682,8 @@ Examples:
   node spotpilot status --exchange coinex --coin PEARL,USDT
   node spotpilot balance --exchange coinex --coin QUAI,RVN
   node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --amount 0.001
+  node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --balance-percent 100
+  node spotpilot order --exchange coinex --type market --side buy --pair BTC-USDT --balance-percent 100 --dryrun
   node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price-percent 10
   node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price 60000 --dryrun
 
@@ -497,7 +703,11 @@ Network-specific rows are included when the exchange provides them.`,
 Options:
   --exchange coinex     Exchange (default: SPOTPILOT_EXCHANGE or safetrade)
   --pair BTC-USDT       Trading pair; required
-  --amount 0.001        Base-asset amount; required
+  --amount 0.001        Exact base-asset amount
+  --balance-percent 100 Percentage of available base (sell) or quote (buy)
+                        Use exactly one of --amount or --balance-percent
+  --reserve-percent 0.5 Buy-side reserve used with --balance-percent
+                        (default: SPOTPILOT_BUY_RESERVE_PERCENT or 0.5)
   --price 0.28          Exact limit price
   --price-percent 10    Limit price relative to last traded price
   --dryrun              Validate without submitting

@@ -41,6 +41,28 @@ test('getPrice calls the public ticker endpoint and extracts last price', async 
   assert.equal(result.price, '0.28000000');
 });
 
+test('getMarketInfo normalizes SafeTrade amount and price precision', async () => {
+  const calls = [];
+  const client = createClient(calls, () => jsonResponse({
+    data: [{
+      id: 'btcusdt',
+      base_unit: 'btc',
+      quote_unit: 'usdt',
+      amount_precision: 8,
+      price_precision: 2,
+      min_amount: '0.0005',
+    }],
+  }));
+
+  const result = await client.getMarketInfo('BTC-USDT');
+
+  assert.equal(calls[0].url, 'https://safe.trade/api/v2/trade/public/markets');
+  assert.equal(result.basePrecision, 8);
+  assert.equal(result.quotePrecision, 2);
+  assert.equal(result.minAmount, '0.0005');
+  assert.equal(result.marketBuyAmountAsset, 'base');
+});
+
 test('getAssetStatuses normalizes multiple SafeTrade currencies', async () => {
   const calls = [];
   const client = createClient(calls, () => jsonResponse({
@@ -132,6 +154,21 @@ test('createOrder sends a market sell without price', async () => {
     amount: '10',
     type: 'market',
   });
+});
+
+test('SafeTrade rejects a quote-denominated order amount', async () => {
+  const client = createClient([], () => jsonResponse({ id: 123 }, 201));
+
+  await assert.rejects(
+    client.createOrder({
+      pair: 'BTC-USDT',
+      side: 'buy',
+      type: 'market',
+      amount: '100',
+      amountAsset: 'USDT',
+    }),
+    /must be denominated in BTC/,
+  );
 });
 
 test('createOrder sends a normalized decimal price for a limit order', async () => {
