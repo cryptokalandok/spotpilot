@@ -13,14 +13,6 @@ client/service layer can later be called from an AWS Lambda handler.
 Public price requests do not require an API key. CoinEx status requests use its
 authenticated deposit/withdrawal configuration endpoint.
 
-## Why `npm install` creates no `node_modules`
-
-The project deliberately has no third-party packages. It uses Node's built-in
-`fetch`, `crypto`, `readline`, test runner and filesystem modules. Therefore an
-`npm install` may create or update `package-lock.json`, but there is nothing to
-place in a `node_modules` directory. This is expected and keeps a future Lambda
-deployment small.
-
 ## Run the CLI
 
 No install step is required:
