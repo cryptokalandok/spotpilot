@@ -1,4 +1,4 @@
-import { SafeTradeValidationError } from './errors.js';
+import { SpotPilotValidationError } from './errors.js';
 
 export function compareDecimals(left, right) {
   const a = parseDecimal(left);
@@ -23,7 +23,7 @@ export function applyPercent(value, percent) {
   const multiplier = 100n * percentScale + adjustment.coefficient;
 
   if (multiplier <= 0n) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       'price-percent must result in a positive price',
     );
   }
@@ -39,7 +39,7 @@ function parseDecimal(value, { signed = false } = {}) {
   const pattern = signed ? /^-?\d+(?:\.\d+)?$/ : /^\d+(?:\.\d+)?$/;
 
   if (!pattern.test(normalized)) {
-    throw new SafeTradeValidationError(`Invalid decimal value: ${value}`);
+    throw new SpotPilotValidationError(`Invalid decimal value: ${value}`);
   }
 
   const negative = normalized.startsWith('-');

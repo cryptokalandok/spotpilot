@@ -1,30 +1,44 @@
-import { SafeTradeValidationError } from './errors.js';
+import { SpotPilotValidationError } from './errors.js';
 
 const DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
 export function normalizeMarket(pair) {
   if (typeof pair !== 'string' || pair.trim() === '') {
-    throw new SafeTradeValidationError('pair must be a non-empty string');
+    throw new SpotPilotValidationError('pair must be a non-empty string');
   }
 
   const market = pair.trim().toLowerCase().replace(/[-_/\s]/g, '');
 
   if (!/^[a-z0-9]+$/.test(market)) {
-    throw new SafeTradeValidationError(`Invalid pair: ${pair}`);
+    throw new SpotPilotValidationError(`Invalid pair: ${pair}`);
   }
 
   return market;
 }
 
+export function splitPair(pair) {
+  const match = String(pair ?? '').trim().toUpperCase().match(
+    /^([A-Z0-9]+)[-_/]([A-Z0-9]+)$/,
+  );
+
+  if (!match) {
+    throw new SpotPilotValidationError(
+      'Pair must contain a separator, for example PRL-USDT',
+    );
+  }
+
+  return { base: match[1], quote: match[2] };
+}
+
 export function normalizeAsset(asset) {
   if (typeof asset !== 'string' || asset.trim() === '') {
-    throw new SafeTradeValidationError('asset must be a non-empty string');
+    throw new SpotPilotValidationError('asset must be a non-empty string');
   }
 
   const normalized = asset.trim().toUpperCase();
 
   if (!/^[A-Z0-9]+$/.test(normalized)) {
-    throw new SafeTradeValidationError(`Invalid asset: ${asset}`);
+    throw new SpotPilotValidationError(`Invalid asset: ${asset}`);
   }
 
   return normalized;
@@ -34,7 +48,7 @@ export function normalizePositiveDecimal(value, fieldName) {
   const normalized = String(value).trim().replace(',', '.');
 
   if (!DECIMAL_PATTERN.test(normalized) || /^0(?:\.0+)?$/.test(normalized)) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       `${fieldName} must be a positive decimal number`,
     );
   }
@@ -89,7 +103,7 @@ export function extractLastPrice(payload) {
   );
 
   if (value === undefined) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       'SafeTrade ticker response did not contain a last price',
     );
   }
@@ -108,20 +122,20 @@ function extractArray(payload, keys) {
     }
   }
 
-  throw new SafeTradeValidationError(
+  throw new SpotPilotValidationError(
     'SafeTrade response did not contain a balance array',
   );
 }
 
 function decimalString(value) {
   if (typeof value !== 'string' && typeof value !== 'number') {
-    throw new SafeTradeValidationError(`Invalid decimal value: ${value}`);
+    throw new SpotPilotValidationError(`Invalid decimal value: ${value}`);
   }
 
   const normalized = String(value).trim();
 
   if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) {
-    throw new SafeTradeValidationError(`Invalid decimal value: ${value}`);
+    throw new SpotPilotValidationError(`Invalid decimal value: ${value}`);
   }
 
   return normalized;

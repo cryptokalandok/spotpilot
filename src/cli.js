@@ -2,18 +2,22 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as processStdin, stdout as processStdout } from 'node:process';
-import { SafeTradeClient } from './client.js';
 import { compareDecimals, applyPercent, multiplyDecimals } from './decimal.js';
 import {
-  SafeTradeApiError,
-  SafeTradeValidationError,
+  SpotPilotApiError,
+  SpotPilotValidationError,
 } from './errors.js';
+import {
+  createExchangeClient,
+  normalizeExchangeName,
+} from './exchanges/index.js';
 import {
   normalizeAsset,
   normalizePositiveDecimal,
+  splitPair,
 } from './normalizers.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const DEFAULT_PAIR = 'PRL-USDT';
 const BOOLEAN_OPTIONS = new Set(['help', 'yes', 'dryrun', 'debug']);
 
@@ -51,28 +55,35 @@ export async function runCli(argv, dependencies = {}) {
 
     const fileEnv = loadEnvFile(join(cwd, '.env'));
     const config = { ...fileEnv, ...env };
+    const exchange = normalizeExchangeName(
+      options.exchange ?? config.SPOTPILOT_EXCHANGE ?? 'safetrade',
+    );
     const clientFactory = dependencies.clientFactory ?? ((clientOptions) => (
-      new SafeTradeClient(clientOptions)
+      createExchangeClient(clientOptions)
     ));
     const client = clientFactory({
-      apiKey: config.SAFETRADE_API_KEY,
-      apiSecret: config.SAFETRADE_API_SECRET,
-      baseUrl: config.SAFETRADE_BASE_URL,
-      timeoutMs: parseTimeout(config.SAFETRADE_TIMEOUT_MS),
+      exchange,
+      env: config,
+      timeoutMs: parseTimeout(
+        config.SPOTPILOT_TIMEOUT_MS ??
+        (exchange === 'coinex'
+          ? config.COINEX_TIMEOUT_MS
+          : config.SAFETRADE_TIMEOUT_MS),
+      ),
     });
 
     switch (command) {
       case 'price':
-        assertKnownOptions(options, ['pair', 'debug']);
+        assertKnownOptions(options, ['exchange', 'pair', 'debug']);
         await printPrice(client, options, stdout);
         return 0;
       case 'balance':
-        assertKnownOptions(options, ['coin', 'debug']);
+        assertKnownOptions(options, ['exchange', 'coin', 'debug']);
         await printBalances(client, options, stdout);
         return 0;
       case 'order':
         assertKnownOptions(options, [
-          'type', 'side', 'order', 'pair', 'amount', 'price',
+          'exchange', 'type', 'side', 'order', 'pair', 'amount', 'price',
           'price-percent', 'yes', 'dryrun', 'debug',
         ]);
         await submitOrder(client, options, {
@@ -81,7 +92,7 @@ export async function runCli(argv, dependencies = {}) {
         });
         return 0;
       default:
-        throw new SafeTradeValidationError(
+        throw new SpotPilotValidationError(
           `Unknown command: ${command}. Use "node spotpilot --help".`,
         );
     }
@@ -98,7 +109,10 @@ async function printPrice(client, options, stdout) {
   const pair = normalizeDisplayPair(options.pair ?? DEFAULT_PAIR);
   const { base, quote } = splitPair(pair);
   const result = await client.getPrice(pair);
-  stdout(`${pair}: 1 ${base} = ${result.price} ${quote} (last traded price)`);
+  stdout(
+    `[${client.displayName ?? client.exchange}] ${pair}: ` +
+    `1 ${base} = ${result.price} ${quote} (last traded price)`,
+  );
 }
 
 async function printBalances(client, options, stdout) {
@@ -108,6 +122,7 @@ async function printBalances(client, options, stdout) {
   const balances = await client.getBalances({ coins: assets });
   const byAsset = new Map(balances.map((balance) => [balance.asset, balance]));
 
+  stdout(`Exchange: ${client.displayName ?? client.exchange}`);
   stdout('ASSET\tTOTAL\tAVAILABLE\tLOCKED');
   for (const asset of assets) {
     const balance = byAsset.get(asset) ?? {
@@ -132,19 +147,19 @@ async function submitOrder(client, options, { stdout, confirm }) {
   const hasPricePercent = options['price-percent'] !== undefined;
 
   if (hasPrice && hasPricePercent) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       '--price and --price-percent are mutually exclusive',
     );
   }
 
   if (type === 'market' && (hasPrice || hasPricePercent)) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       'Market orders must not use --price or --price-percent',
     );
   }
 
   if (type === 'limit' && !hasPrice && !hasPricePercent) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       'A limit order requires exactly one of --price or --price-percent',
     );
   }
@@ -167,7 +182,7 @@ async function submitOrder(client, options, { stdout, confirm }) {
     const balance = await client.getBalance(base);
     const available = balance?.available ?? '0';
     if (compareDecimals(available, amount) < 0) {
-      throw new SafeTradeValidationError(
+      throw new SpotPilotValidationError(
         `Insufficient ${base} balance: ${available} available, ${amount} required`,
       );
     }
@@ -181,7 +196,7 @@ async function submitOrder(client, options, { stdout, confirm }) {
     const balance = await client.getBalance(quote);
     const available = balance?.available ?? '0';
     if (compareDecimals(available, requiredQuote) < 0) {
-      throw new SafeTradeValidationError(
+      throw new SpotPilotValidationError(
         `Insufficient ${quote} balance: ${available} available, approximately ${requiredQuote} required`,
       );
     }
@@ -197,6 +212,7 @@ async function submitOrder(client, options, { stdout, confirm }) {
     type.toUpperCase(),
     price ? `@ ${price} ${quote}` : '',
   ].filter(Boolean).join(' ');
+  stdout(`Exchange: ${client.displayName ?? client.exchange}`);
   stdout(`Order: ${summary}`);
 
   if (options['dryrun']) {
@@ -219,7 +235,7 @@ async function submitOrder(client, options, { stdout, confirm }) {
     amount,
     price,
   });
-  const id = order?.id ?? order?.uuid ?? 'unknown';
+  const id = order?.id ?? order?.order_id ?? order?.uuid ?? 'unknown';
   const state = order?.state ? `, state=${order.state}` : '';
   stdout(`Order submitted successfully: id=${id}${state}`);
 }
@@ -236,23 +252,23 @@ function parseOptions(args) {
     }
 
     if (!argument.startsWith('--')) {
-      throw new SafeTradeValidationError(`Unexpected argument: ${argument}`);
+      throw new SpotPilotValidationError(`Unexpected argument: ${argument}`);
     }
 
     const [rawName, inlineValue] = argument.slice(2).split(/=(.*)/s, 2);
     const name = rawName.trim();
 
     if (!name) {
-      throw new SafeTradeValidationError('Invalid empty option');
+      throw new SpotPilotValidationError('Invalid empty option');
     }
 
     if (Object.hasOwn(options, name)) {
-      throw new SafeTradeValidationError(`Option --${name} was provided twice`);
+      throw new SpotPilotValidationError(`Option --${name} was provided twice`);
     }
 
     if (BOOLEAN_OPTIONS.has(name)) {
       if (inlineValue !== undefined && !['true', 'false'].includes(inlineValue)) {
-        throw new SafeTradeValidationError(
+        throw new SpotPilotValidationError(
           `Boolean option --${name} accepts only true or false`,
         );
       }
@@ -262,7 +278,7 @@ function parseOptions(args) {
 
     const value = inlineValue ?? args[index + 1];
     if (value === undefined || value.startsWith('--')) {
-      throw new SafeTradeValidationError(`Option --${name} requires a value`);
+      throw new SpotPilotValidationError(`Option --${name} requires a value`);
     }
     if (inlineValue === undefined) {
       index += 1;
@@ -275,7 +291,7 @@ function parseOptions(args) {
 
 function resolveSideOption(options) {
   if (options.side !== undefined && options.order !== undefined) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       'Use either --side or the compatibility alias --order, not both',
     );
   }
@@ -285,7 +301,7 @@ function resolveSideOption(options) {
 function normalizeChoice(value, name, allowed) {
   const normalized = String(value ?? '').trim().toLowerCase();
   if (!allowed.includes(normalized)) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       `--${name} is required and must be one of: ${allowed.join(', ')}`,
     );
   }
@@ -297,23 +313,11 @@ function normalizeDisplayPair(value) {
   return `${base}-${quote}`;
 }
 
-function splitPair(value) {
-  const match = String(value ?? '').trim().toUpperCase().match(
-    /^([A-Z0-9]+)[-_/]([A-Z0-9]+)$/,
-  );
-  if (!match) {
-    throw new SafeTradeValidationError(
-      'Pair must contain a separator, for example PRL-USDT',
-    );
-  }
-  return { base: match[1], quote: match[2] };
-}
-
 function assertKnownOptions(options, allowed) {
   const allowedSet = new Set(allowed);
   const unknown = Object.keys(options).find((name) => !allowedSet.has(name));
   if (unknown) {
-    throw new SafeTradeValidationError(`Unknown option: --${unknown}`);
+    throw new SpotPilotValidationError(`Unknown option: --${unknown}`);
   }
 }
 
@@ -323,8 +327,8 @@ function parseTimeout(value) {
   }
   const timeout = Number(value);
   if (!Number.isInteger(timeout) || timeout <= 0) {
-    throw new SafeTradeValidationError(
-      'SAFETRADE_TIMEOUT_MS must be a positive integer',
+    throw new SpotPilotValidationError(
+      'The configured timeout must be a positive integer',
     );
   }
   return timeout;
@@ -359,7 +363,7 @@ function loadEnvFile(path) {
 
 async function defaultConfirm(question) {
   if (!processStdin.isTTY) {
-    throw new SafeTradeValidationError(
+    throw new SpotPilotValidationError(
       'Non-interactive order submission requires --yes',
     );
   }
@@ -377,7 +381,7 @@ function formatPercent(percent) {
 }
 
 function formatCliError(error) {
-  if (error instanceof SafeTradeApiError && error.code === 'CLOUDFLARE_BLOCKED') {
+  if (error instanceof SpotPilotApiError && error.code === 'CLOUDFLARE_BLOCKED') {
     const ray = error.rayId ? ` Cloudflare Ray ID: ${error.rayId}.` : '';
     return [
       'SafeTrade blocked the API request through Cloudflare (HTTP 403).',
@@ -389,7 +393,7 @@ function formatCliError(error) {
 }
 
 function helpText() {
-  return `SpotPilot ${VERSION} — SafeTrade spot trading CLI
+  return `SpotPilot ${VERSION} — multi-exchange spot trading CLI
 
 Usage:
   node spotpilot <command> [options]
@@ -400,22 +404,23 @@ Commands:
   order      Validate and submit a market or limit order
 
 Examples:
-  node spotpilot price --pair PRL-USDT
-  node spotpilot balance --coin PRL,USDT
-  node spotpilot order --type market --side sell --pair PRL-USDT --amount 10
-  node spotpilot order --type limit --side sell --amount 10 --price-percent 10
-  node spotpilot order --type limit --side sell --amount 10 --price 0,28 --dryrun
+  node spotpilot price --exchange coinex --pair PRL-USDT
+  node spotpilot balance --exchange coinex --coin PRL,USDT
+  node spotpilot order --exchange coinex --type market --side sell --amount 10
+  node spotpilot order --exchange coinex --type limit --side sell --amount 10 --price-percent 10
+  node spotpilot order --exchange coinex --type limit --side sell --amount 10 --price 0,28 --dryrun
 
 Run "node spotpilot <command> --help" for command-specific help.`;
 }
 
 function commandHelp(command) {
   const help = {
-    price: `Usage: node spotpilot price [--pair PRL-USDT]`,
-    balance: `Usage: node spotpilot balance [--coin PRL,USDT]`,
+    price: `Usage: node spotpilot price [--exchange safetrade|coinex] [--pair PRL-USDT]`,
+    balance: `Usage: node spotpilot balance [--exchange safetrade|coinex] [--coin PRL,USDT]`,
     order: `Usage: node spotpilot order --type market|limit --side buy|sell [options]
 
 Options:
+  --exchange coinex     Exchange (default: SPOTPILOT_EXCHANGE or safetrade)
   --pair PRL-USDT       Trading pair (default: PRL-USDT)
   --amount 10           Base-asset amount; required
   --price 0.28          Exact limit price
@@ -425,7 +430,7 @@ Options:
   --order sell          Compatibility alias for --side sell`,
   };
   if (!help[command]) {
-    throw new SafeTradeValidationError(`Unknown command: ${command}`);
+    throw new SpotPilotValidationError(`Unknown command: ${command}`);
   }
   return help[command];
 }

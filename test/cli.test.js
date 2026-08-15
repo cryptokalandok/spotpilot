@@ -5,8 +5,36 @@ import { runCli } from '../src/cli.js';
 test('no command prints help instead of doing nothing', async () => {
   const result = await runWithClient([], {});
   assert.equal(result.code, 0);
-  assert.match(result.output, /SpotPilot 0\.2\.0/);
+  assert.match(result.output, /SpotPilot 0\.3\.0/);
   assert.match(result.output, /node spotpilot price/);
+});
+
+test('--exchange coinex selects the CoinEx client', async () => {
+  const factoryCalls = [];
+  const stdout = [];
+  const stderr = [];
+  const code = await runCli(
+    ['price', '--exchange', 'coinex', '--pair', 'PRL-USDT'],
+    {
+      clientFactory: (options) => {
+        factoryCalls.push(options);
+        return {
+          exchange: 'coinex',
+          displayName: 'CoinEx',
+          getPrice: async () => ({ price: '0.30' }),
+        };
+      },
+      stdout: (line) => stdout.push(line),
+      stderr: (line) => stderr.push(line),
+      env: {},
+      cwd: '/directory-that-does-not-exist',
+    },
+  );
+
+  assert.equal(code, 0);
+  assert.equal(factoryCalls[0].exchange, 'coinex');
+  assert.match(stdout.join('\n'), /\[CoinEx\].*0\.30 USDT/);
+  assert.deepEqual(stderr, []);
 });
 
 test('price prints a human-readable last traded price', async () => {
@@ -43,7 +71,7 @@ test('market sell checks available balance and submits after --yes', async () =>
       getBalance: async () => ({ available: '10.5' }),
       createOrder: async (order) => {
         submitted.push(order);
-        return { id: 42, state: 'wait' };
+        return { order_id: 42, state: 'wait' };
       },
     },
   );

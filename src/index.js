@@ -4,6 +4,10 @@ export {
   createSignature,
 } from './client.js';
 export {
+  SpotPilotApiError,
+  SpotPilotConfigError,
+  SpotPilotError,
+  SpotPilotValidationError,
   SafeTradeApiError,
   SafeTradeConfigError,
   SafeTradeError,
@@ -15,9 +19,21 @@ export {
   normalizeBalancesPayload,
   normalizeMarket,
   normalizePositiveDecimal,
+  splitPair,
 } from './normalizers.js';
 export {
   applyPercent,
   compareDecimals,
   multiplyDecimals,
 } from './decimal.js';
+export {
+  CoinExClient,
+  DEFAULT_COINEX_BASE_URL,
+  createCoinExSignature,
+  normalizeCoinExMarket,
+} from './exchanges/coinex.js';
+export {
+  SUPPORTED_EXCHANGES,
+  createExchangeClient,
+  normalizeExchangeName,
+} from './exchanges/index.js';

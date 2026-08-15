@@ -21,6 +21,9 @@ export function createSignature({ nonce, apiKey, apiSecret }) {
 }
 
 export class SafeTradeClient {
+  exchange = 'safetrade';
+  displayName = 'SafeTrade';
+
   #apiKey;
   #apiSecret;
   #baseUrl;
@@ -207,6 +210,7 @@ export class SafeTradeClient {
           throw new SafeTradeApiError(
             'SafeTrade API request was blocked by Cloudflare',
             {
+              exchange: 'safetrade',
               status: response.status,
               method,
               url: url.toString(),
@@ -222,6 +226,7 @@ export class SafeTradeClient {
         throw new SafeTradeApiError(
           apiErrorMessage(response.status, payload),
           {
+            exchange: 'safetrade',
             status: response.status,
             method,
             url: url.toString(),
@@ -241,6 +246,7 @@ export class SafeTradeClient {
         throw new SafeTradeApiError(
           timedOut ? 'SafeTrade request timed out' : 'SafeTrade request was aborted',
           {
+            exchange: 'safetrade',
             method,
             url: url.toString(),
             code: timedOut ? 'REQUEST_TIMEOUT' : 'REQUEST_ABORTED',
@@ -250,6 +256,7 @@ export class SafeTradeClient {
       }
 
       throw new SafeTradeApiError('SafeTrade request failed', {
+        exchange: 'safetrade',
         method,
         url: url.toString(),
         code: 'NETWORK_ERROR',
