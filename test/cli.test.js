@@ -5,7 +5,7 @@ import { runCli } from '../src/cli.js';
 test('no command prints help instead of doing nothing', async () => {
   const result = await runWithClient([], {});
   assert.equal(result.code, 0);
-  assert.match(result.output, /SpotPilot 0\.6\.0/);
+  assert.match(result.output, /SpotPilot 0\.7\.0/);
   assert.match(result.output, /node spotpilot price/);
 });
 

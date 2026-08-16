@@ -6,6 +6,7 @@ import {
   SafeTradeClient,
   SafeTradeConfigError,
   SafeTradeValidationError,
+  createExchangeClient,
   createSignature,
 } from '../src/index.js';
 
@@ -285,6 +286,24 @@ test('nonces remain strictly increasing when requests share a millisecond', asyn
     calls.map(({ options }) => options.headers['X-Auth-Nonce']),
     [String(FIXED_TIME), String(FIXED_TIME + 1)],
   );
+});
+
+test('exchange factory proxies SafeTrade requests when globally configured', async () => {
+  const calls = [];
+  const client = createExchangeClient({
+    exchange: 'safetrade',
+    env: {
+      SPOTPILOT_PROXY_URL: 'https://proxy.example.com:8443',
+    },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return jsonResponse({ ticker: { last: '60000' } });
+    },
+  });
+
+  await client.getPrice('BTC-USDT');
+
+  assert.equal(typeof calls[0].options.dispatcher?.dispatch, 'function');
 });
 
 function createClient(calls, responder) {

@@ -257,6 +257,26 @@ test('exchange factory builds a CoinEx client from CoinEx environment keys', () 
   assert.equal(client.exchange, 'coinex');
 });
 
+test('exchange factory proxies CoinEx requests when globally configured', async () => {
+  const calls = [];
+  const client = createExchangeClient({
+    exchange: 'coinex',
+    env: {
+      COINEX_API_KEY: 'key',
+      COINEX_API_SECRET: 'secret',
+      SPOTPILOT_PROXY_URL: 'http://proxy.example.com:3128',
+    },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return coinExResponse([{ market: 'BTCUSDT', last: '60000' }]);
+    },
+  });
+
+  await client.getPrice('BTC-USDT');
+
+  assert.equal(typeof calls[0].options.dispatcher?.dispatch, 'function');
+});
+
 function createClient(calls, responder) {
   return new CoinExClient({
     apiKey: 'key',

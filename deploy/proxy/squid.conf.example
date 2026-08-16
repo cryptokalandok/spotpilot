@@ -1,0 +1,32 @@
+# Explicit HTTPS forward proxy for SpotPilot.
+# Replace proxy.example.com certificate paths as described in docs/proxy.md.
+
+https_port 0.0.0.0:8443 tls-cert=/etc/squid/tls/fullchain.pem tls-key=/etc/squid/tls/privkey.pem
+
+auth_param basic program /usr/lib/squid/basic_ncsa_auth /etc/squid/passwords
+auth_param basic children 5
+auth_param basic realm SpotPilot proxy
+auth_param basic credentialsttl 2 hours
+
+acl authenticated proxy_auth REQUIRED
+acl CONNECT method CONNECT
+acl SSL_ports port 443
+
+# Only hosts used by the currently supported exchanges are reachable.
+acl exchange_api dstdomain safe.trade api.coinex.com
+
+# This service accepts encrypted tunnels only, and only to HTTPS port 443.
+http_access deny !CONNECT
+http_access deny CONNECT !SSL_ports
+http_access allow authenticated CONNECT exchange_api
+http_access deny all
+
+# CONNECT traffic is not cacheable; keep the intent explicit.
+cache deny all
+
+visible_hostname spotpilot-proxy
+access_log daemon:/var/log/squid/access.log squid
+cache_log /var/log/squid/cache.log
+
+# Intentionally absent: TLS interception, generated origin certificates,
+# certificate-key logging, ICAP and eCAP content adapters.

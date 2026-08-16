@@ -25,7 +25,9 @@ export {
   DEFAULT_DNS_RESULT_ORDER,
   SUPPORTED_DNS_RESULT_ORDERS,
   configureDnsResultOrder,
+  createProxyFetch,
   normalizeDnsResultOrder,
+  normalizeProxyUrl,
 } from './network.js';
 export {
   applyPercent,

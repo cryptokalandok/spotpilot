@@ -1,23 +1,24 @@
 # SpotPilot
 
-SpotPilot is a dependency-free, multi-exchange spot trading CLI and reusable
-Node.js library. It currently supports SafeTrade and CoinEx. The same
-client/service layer can later be called from an AWS Lambda handler.
+SpotPilot is a multi-exchange spot trading CLI and reusable Node.js library.
+It currently supports SafeTrade and CoinEx. The same client/service layer can
+later be called from an AWS Lambda handler.
 
 ## Requirements
 
 - Node.js 20 or newer
 - An API key for balances and orders on the selected exchange
-- No npm runtime dependencies
+- `npm install` to install the pinned HTTP client used for optional proxying
 
 Public price requests do not require an API key. CoinEx status requests use its
 authenticated deposit/withdrawal configuration endpoint.
 
 ## Run the CLI
 
-No install step is required:
+Install dependencies once, then run the CLI:
 
 ```bash
+npm install
 node spotpilot --help
 node spotpilot price --exchange coinex --pair BTC-USDT
 ```
@@ -49,6 +50,8 @@ cp .env.example .env
 ```dotenv
 SPOTPILOT_EXCHANGE=coinex
 SPOTPILOT_DNS_RESULT_ORDER=ipv4first
+# Leave empty for direct connections, or set one global proxy:
+# SPOTPILOT_PROXY_URL=https://username:password@proxy.example.com:8443
 
 COINEX_API_KEY=your-access-id
 COINEX_API_SECRET=your-secret-key
@@ -70,6 +73,20 @@ environment variables override values from the file.
 not only SafeTrade. It defaults to `ipv4first`, which prefers IPv4 without
 disabling IPv6 fallback. Use `ipv6first` to prefer IPv6 or `verbatim` to retain
 the address order returned by the operating system's resolver.
+
+`SPOTPILOT_PROXY_URL` is optional. When it is missing or empty, SpotPilot
+connects directly. When it is set, **all public and private API requests for
+every exchange** use that HTTP(S) forward proxy. This includes prices, market
+metadata, status, balances and order submission. Supported formats are:
+
+```dotenv
+SPOTPILOT_PROXY_URL=http://proxy.example.com:3128
+SPOTPILOT_PROXY_URL=https://username:password@proxy.example.com:8443
+```
+
+Prefer an `https://` proxy when credentials cross the public internet. URL
+encode special characters in the username or password. Proxy configuration is
+global by design; it is not limited to SafeTrade.
 
 Optional variables:
 
@@ -271,6 +288,7 @@ functions or fake clients and verify:
 - exchange selection through the CLI and factory;
 - asset/network deposit and withdrawal status normalization;
 - the global IPv4-first default and DNS result-order override;
+- optional global proxy routing for SafeTrade and CoinEx requests;
 - market/limit validation and mutually exclusive price options;
 - balance normalization and insufficient-balance rejection;
 - exact decimal and percentage calculations without floating-point rounding;
@@ -319,6 +337,27 @@ exchange requests by default. To temporarily restore Node's resolver order:
 SPOTPILOT_DNS_RESULT_ORDER=verbatim
 ```
 
+## Optional HTTPS CONNECT proxy
+
+A standard forward proxy can provide a stable outbound IP address without
+receiving exchange API credentials in plaintext. SpotPilot sends an HTTP
+`CONNECT` request to the proxy and then establishes the exchange's normal TLS
+session through that tunnel. The proxy can see the destination hostname,
+connection time and transferred byte counts, but not the exchange request
+path, headers, API key, signature, body or response.
+
+SpotPilot does not install a custom certificate authority and does not disable
+TLS certificate verification. A proxy attempting to impersonate an exchange
+therefore causes certificate validation to fail instead of silently exposing
+credentials.
+
+An authenticated, TLS-protected Squid configuration restricted to the current
+SafeTrade and CoinEx API hosts is included in
+[`deploy/proxy/squid.conf.example`](deploy/proxy/squid.conf.example). See
+[`docs/proxy.md`](docs/proxy.md) for Ubuntu installation, certificate renewal,
+IPv4 enforcement and verification steps. Add each future exchange API hostname
+to the proxy allowlist when a new integration is introduced.
+
 ## Node.js library usage
 
 Use the exchange factory when application configuration chooses the provider:
@@ -363,7 +402,9 @@ await client.createOrder({
 
 `SafeTradeClient` and `CoinExClient` can also be instantiated directly.
 `configureDnsResultOrder()` uses the same global IPv4-first default for library
-and future Lambda entry points. All financial values stay as decimal strings.
+and future Lambda entry points. `createExchangeClient()` reads
+`SPOTPILOT_PROXY_URL` from its `env` object and applies it to either provider.
+All financial values stay as decimal strings.
 
 ## API mapping
 
@@ -391,6 +432,8 @@ uses `X-COINEX-KEY`, `X-COINEX-SIGN`, `X-COINEX-TIMESTAMP` and
 - Use a dedicated API key with spot-trading permission only; disable withdrawals.
 - IP-lock the API key if the selected exchange supports it for your account.
 - Keep `.env` out of version control.
+- Use a unique proxy account per user and rotate or revoke it independently.
+- Never install a proxy CA or disable TLS verification on a SpotPilot host.
 - For Lambda, use AWS Secrets Manager or encrypted SSM Parameter Store.
 - Start with `--dryrun`, then test the smallest permitted real amount.
 - A successfully created limit order may remain open or fill only partially.
@@ -406,3 +449,5 @@ uses `X-COINEX-KEY`, `X-COINEX-SIGN`, `X-COINEX-TIMESTAMP` and
 - [SafeTrade API documentation](https://safetrade.com/api)
 - [SafeTrade official example client](https://github.com/safetrade-exchange/example-client)
 - [Reported SafeTrade Cloudflare block](https://github.com/safetrade-exchange/example-client/issues/1)
+- [Undici ProxyAgent documentation](https://github.com/nodejs/undici/blob/main/docs/docs/api/ProxyAgent.md)
+- [Squid HTTPS CONNECT documentation](https://wiki.squid-cache.org/Features/HTTPS)

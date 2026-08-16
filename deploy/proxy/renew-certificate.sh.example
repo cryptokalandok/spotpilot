@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+# Replace this with the DNS name of the proxy before installing the hook.
+PROXY_DOMAIN=proxy.example.com
+
+install -o root -g proxy -m 0640 \
+  "/etc/letsencrypt/live/${PROXY_DOMAIN}/fullchain.pem" \
+  /etc/squid/tls/fullchain.pem
+install -o root -g proxy -m 0640 \
+  "/etc/letsencrypt/live/${PROXY_DOMAIN}/privkey.pem" \
+  /etc/squid/tls/privkey.pem
+
+systemctl reload squid

@@ -25,7 +25,7 @@ import {
 } from './normalizers.js';
 import { configureDnsResultOrder } from './network.js';
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 const DEFAULT_BUY_RESERVE_PERCENT = '0.5';
 const BOOLEAN_OPTIONS = new Set(['help', 'yes', 'dryrun', 'debug']);
 

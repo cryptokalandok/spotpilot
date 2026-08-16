@@ -3,6 +3,7 @@ import {
   SpotPilotConfigError,
   SpotPilotValidationError,
 } from '../errors.js';
+import { createProxyFetch } from '../network.js';
 import { CoinExClient } from './coinex.js';
 
 export const SUPPORTED_EXCHANGES = Object.freeze(['safetrade', 'coinex']);
@@ -35,6 +36,10 @@ export function createExchangeClient({
     throw new SpotPilotConfigError('env must be an object');
   }
 
+  const requestFetch = createProxyFetch(env.SPOTPILOT_PROXY_URL, {
+    fetchImpl,
+  });
+
   if (normalized === 'coinex') {
     return new CoinExClient({
       apiKey: env.COINEX_API_KEY,
@@ -44,7 +49,7 @@ export function createExchangeClient({
         env.COINEX_WINDOW_TIME_MS,
         'COINEX_WINDOW_TIME_MS',
       ),
-      fetchImpl,
+      fetchImpl: requestFetch,
       timeoutMs,
       now,
     });
@@ -54,7 +59,7 @@ export function createExchangeClient({
     apiKey: env.SAFETRADE_API_KEY,
     apiSecret: env.SAFETRADE_API_SECRET,
     baseUrl: env.SAFETRADE_BASE_URL,
-    fetchImpl,
+    fetchImpl: requestFetch,
     timeoutMs,
     now,
   });

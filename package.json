@@ -1,8 +1,8 @@
 {
   "name": "spotpilot",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
-  "description": "A dependency-free multi-exchange spot trading CLI for SafeTrade and CoinEx.",
+  "description": "A multi-exchange spot trading CLI for SafeTrade and CoinEx.",
   "type": "module",
   "main": "./src/index.js",
   "bin": {
@@ -28,5 +28,8 @@
     "spot-trading",
     "exchange-api"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "undici": "^6.21.3"
+  }
 }
