@@ -1,0 +1,190 @@
+name: Release packages
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    name: Build Linux package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify release version
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          tag_version="${RELEASE_TAG#v}"
+
+          if [[ "$package_version" != "$tag_version" ]]; then
+            echo "::error::Tag $RELEASE_TAG does not match package.json version $package_version"
+            exit 1
+          fi
+
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check source files
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Keep production dependencies only
+        run: npm prune --omit=dev
+
+      - name: Create Linux archive
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          package_name="spotpilot-v${VERSION}-linux"
+          package_dir="release/${package_name}"
+
+          mkdir -p "$package_dir"
+          cp .env.example LICENSE README.md package.json package-lock.json spotpilot "$package_dir/"
+          cp -R src docs examples deploy node_modules "$package_dir/"
+          tar -C release -czf "${package_name}.tar.gz" "$package_name"
+
+      - name: Upload Linux archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: spotpilot-v*-linux.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-windows:
+    name: Build Windows package
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify release version
+        id: version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $packageVersion = node -p "require('./package.json').version"
+          $tagVersion = $env:RELEASE_TAG -replace '^v', ''
+
+          if ($packageVersion -ne $tagVersion) {
+            throw "Tag $env:RELEASE_TAG does not match package.json version $packageVersion"
+          }
+
+          "version=$packageVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check source files
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Keep production dependencies only
+        run: npm prune --omit=dev
+
+      - name: Create Windows archive
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $packageName = "spotpilot-v$env:VERSION-windows"
+          $packageDir = Join-Path "release" $packageName
+
+          New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
+
+          $files = @(
+            ".env.example",
+            "LICENSE",
+            "README.md",
+            "package.json",
+            "package-lock.json",
+            "spotpilot",
+            "spotpilot.cmd"
+          )
+          Copy-Item $files -Destination $packageDir
+
+          foreach ($directory in @("src", "docs", "examples", "deploy", "node_modules")) {
+            Copy-Item $directory -Destination $packageDir -Recurse
+          }
+
+          Compress-Archive `
+            -Path $packageDir `
+            -DestinationPath "$packageName.zip" `
+            -CompressionLevel Optimal
+
+      - name: Upload Windows archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: spotpilot-v*-windows.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - build-linux
+      - build-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum spotpilot-* > SHA256SUMS.txt
+
+      - name: Create or update GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --verify-tag \
+              --generate-notes \
+              --title "SpotPilot $RELEASE_TAG"
+          fi
