@@ -4,6 +4,11 @@ SpotPilot is a multi-exchange spot trading CLI and reusable Node.js library.
 It currently supports SafeTrade and CoinEx. The same client/service layer can
 later be called from an AWS Lambda handler.
 
+> **Setting up SpotPilot?** Follow the
+> [environment setup guide](docs/environment.md) for step-by-step HiveOS/Linux
+> and Windows instructions, API credential configuration and scheduled-run
+> working-directory requirements.
+
 ## Requirements
 
 - Node.js 20 or newer
