@@ -4,6 +4,7 @@ import {
   applyPercent,
   compareDecimals,
   divideDecimals,
+  divideDecimalsCeil,
   multiplyDecimals,
   percentageOf,
   subtractDecimals,
@@ -29,6 +30,12 @@ test('decimal division rounds down to the requested precision', () => {
   assert.equal(divideDecimals('99.5', '20', 8), '4.975');
   assert.equal(divideDecimals('10', '3', 4), '3.3333');
   assert.equal(divideDecimals('0.1', '2', 8), '0.05');
+});
+
+test('ceiling decimal division reaches a target at the requested precision', () => {
+  assert.equal(divideDecimalsCeil('5', '0.28', 8), '17.85714286');
+  assert.equal(divideDecimalsCeil('10', '2', 8), '5');
+  assert.equal(divideDecimalsCeil('0.1', '3', 2), '0.04');
 });
 
 test('balance percentages round down to the asset precision', () => {

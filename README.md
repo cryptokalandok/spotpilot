@@ -161,8 +161,9 @@ node spotpilot order \
 means 0.001 BTC for both buys and sells. SpotPilot explicitly sends this
 denomination to CoinEx for market orders.
 
-Every order requires exactly one sizing option: either an exact `--amount` or
-`--balance-percent`. They cannot be used together.
+Every order requires exactly one sizing option: an exact base `--amount`, an
+available `--balance-percent`, or a target sell `--receive` amount. They cannot
+be used together.
 
 Before a sell, SpotPilot checks the base asset's available balance. It then
 shows an order summary and asks for confirmation. Use `--yes` only for an
@@ -219,6 +220,47 @@ reserve, final budget and calculated order amount.
 For CoinEx market buys, SpotPilot sends the calculated budget in the quote
 asset directly. SafeTrade market buys and all limit buys are converted to a
 base-asset amount using the last traded or selected limit price.
+
+### Sell for target quote proceeds
+
+To sell enough of the base asset for approximately 100 USDT of gross proceeds:
+
+```bash
+node spotpilot order \
+  --exchange coinex \
+  --type market \
+  --side sell \
+  --pair BTC-USDT \
+  --receive 100
+```
+
+`--receive` is available only for sell orders and denotes the pair's quote
+asset. For `BTC-USDT`, `--receive 100` therefore targets 100 USDT. SpotPilot
+fetches the market's base-amount precision and calculates how much BTC must be
+sold. The amount is rounded **up** to that precision so the estimated gross
+proceeds do not fall below the target solely because of amount rounding.
+
+For a market order, the calculation uses the last traded price. The actual
+execution price may differ because the market can move and the order can fill
+at multiple prices. For a limit order, the calculation uses `--price` or the
+price produced by `--price-percent`:
+
+```bash
+node spotpilot order \
+  --exchange coinex \
+  --type limit \
+  --side sell \
+  --pair BTC-USDT \
+  --receive 100 \
+  --price 60000
+```
+
+The target and displayed estimate are **gross** values. Trading fees are not
+included, and market-order slippage cannot be known before execution. Therefore
+`--receive 100` cannot guarantee that exactly 100 USDT will be credited after
+fees. SpotPilot prints the reference price, calculated base amount and estimated
+gross proceeds before confirmation, and rejects the order if the available base
+balance is insufficient.
 
 ### Limit order with an exact price
 
@@ -293,6 +335,7 @@ functions or fake clients and verify:
 - balance normalization and insufficient-balance rejection;
 - exact decimal and percentage calculations without floating-point rounding;
 - balance-percentage allocation, buy reserve and downward amount rounding;
+- target quote proceeds and upward base-amount rounding for sell orders;
 - CLI parsing, help, human-readable output, confirmation and dryrun behavior;
 - concise handling of SafeTrade/Cloudflare HTTP 403 pages;
 - structured SafeTrade and CoinEx API errors.

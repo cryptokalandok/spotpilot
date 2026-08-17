@@ -33,6 +33,7 @@ export {
   applyPercent,
   compareDecimals,
   divideDecimals,
+  divideDecimalsCeil,
   multiplyDecimals,
   percentageOf,
   subtractDecimals,

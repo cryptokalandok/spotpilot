@@ -27,31 +27,21 @@ export function subtractDecimals(left, right) {
 }
 
 export function divideDecimals(left, right, scale) {
-  const a = parseDecimal(left);
-  const b = parseDecimal(right);
-
-  if (!Number.isInteger(scale) || scale < 0 || scale > 100) {
-    throw new SpotPilotValidationError(
-      'Decimal division scale must be an integer between 0 and 100',
-    );
-  }
-  if (b.coefficient === 0n) {
-    throw new SpotPilotValidationError('Cannot divide by zero');
-  }
-
-  const exponent = b.scale + scale - a.scale;
-  let numerator = a.coefficient;
-  let denominator = b.coefficient;
-
-  if (exponent >= 0) {
-    numerator *= 10n ** BigInt(exponent);
-  } else {
-    denominator *= 10n ** BigInt(-exponent);
-  }
+  const { numerator, denominator } = prepareDivision(left, right, scale);
 
   // Integer division intentionally rounds down for the positive financial
   // values accepted here, so a calculated order never exceeds its budget.
   return formatDecimal(numerator / denominator, scale, true);
+}
+
+export function divideDecimalsCeil(left, right, scale) {
+  const { numerator, denominator } = prepareDivision(left, right, scale);
+  const quotient = numerator / denominator;
+  const roundedUp = numerator % denominator === 0n
+    ? quotient
+    : quotient + 1n;
+
+  return formatDecimal(roundedUp, scale, true);
 }
 
 export function percentageOf(value, percent, scale) {
@@ -95,6 +85,32 @@ function parseDecimal(value, { signed = false } = {}) {
   const coefficient = BigInt(integer + fraction) * (negative ? -1n : 1n);
 
   return { coefficient, scale: fraction.length };
+}
+
+function prepareDivision(left, right, scale) {
+  const a = parseDecimal(left);
+  const b = parseDecimal(right);
+
+  if (!Number.isInteger(scale) || scale < 0 || scale > 100) {
+    throw new SpotPilotValidationError(
+      'Decimal division scale must be an integer between 0 and 100',
+    );
+  }
+  if (b.coefficient === 0n) {
+    throw new SpotPilotValidationError('Cannot divide by zero');
+  }
+
+  const exponent = b.scale + scale - a.scale;
+  let numerator = a.coefficient;
+  let denominator = b.coefficient;
+
+  if (exponent >= 0) {
+    numerator *= 10n ** BigInt(exponent);
+  } else {
+    denominator *= 10n ** BigInt(-exponent);
+  }
+
+  return { numerator, denominator };
 }
 
 function formatDecimal(coefficient, scale, trim) {

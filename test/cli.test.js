@@ -5,7 +5,7 @@ import { runCli } from '../src/cli.js';
 test('no command prints help instead of doing nothing', async () => {
   const result = await runWithClient([], {});
   assert.equal(result.code, 0);
-  assert.match(result.output, /SpotPilot 0\.7\.0/);
+  assert.match(result.output, /SpotPilot 0\.8\.0/);
   assert.match(result.output, /node spotpilot price/);
 });
 
@@ -173,6 +173,81 @@ test('insufficient sell balance prevents submission', async () => {
   assert.match(result.error, /Insufficient BTC balance/);
 });
 
+test('market sell derives a base amount from the target quote proceeds', async () => {
+  const submitted = [];
+  const result = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'sell',
+      '--pair', 'BTC-USDT', '--receive', '5', '--yes',
+    ],
+    {
+      getMarketInfo: async () => ({
+        basePrecision: 8,
+        quotePrecision: 2,
+        minAmount: '0.0005',
+        marketBuyAmountAsset: 'base',
+      }),
+      getPrice: async () => ({ price: '0.28' }),
+      getBalance: async (asset) => {
+        assert.equal(asset, 'BTC');
+        return { available: '20' };
+      },
+      createOrder: async (order) => {
+        submitted.push(order);
+        return { id: 46 };
+      },
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(submitted, [{
+    pair: 'BTC-USDT',
+    side: 'sell',
+    type: 'market',
+    amount: '17.85714286',
+    price: undefined,
+  }]);
+  assert.match(result.output, /Receive target: 5 USDT gross/);
+  assert.match(result.output, /Calculated order amount: 17\.85714286 BTC/);
+  assert.match(result.output, /Estimated gross proceeds: 5\.0000000008 USDT/);
+  assert.match(result.output, /fees and market-order slippage excluded/);
+});
+
+test('limit sell uses its limit price for target quote sizing', async () => {
+  let priceRequested = false;
+  const submitted = [];
+  const result = await runWithClient(
+    [
+      'order', '--type', 'limit', '--side', 'sell', '--pair', 'BTC-USDT',
+      '--receive', '5', '--price', '3', '--yes',
+    ],
+    {
+      getMarketInfo: async () => ({
+        basePrecision: 2,
+        quotePrecision: 2,
+        minAmount: '0.01',
+        marketBuyAmountAsset: 'base',
+      }),
+      getPrice: async () => {
+        priceRequested = true;
+        return { price: '2.5' };
+      },
+      getBalance: async () => ({ available: '2' }),
+      createOrder: async (order) => {
+        submitted.push(order);
+        return { id: 47 };
+      },
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.equal(priceRequested, false);
+  assert.equal(submitted[0].amount, '1.67');
+  assert.equal(submitted[0].price, '3');
+  assert.match(result.output, /Estimated gross proceeds: 5\.01 USDT/);
+  assert.match(result.output, /limit price, rounded up to 2 decimal places/);
+});
+
 test('balance-percent 100 sells the available base balance rounded down', async () => {
   const submitted = [];
   const result = await runWithClient(
@@ -281,11 +356,32 @@ test('order sizing options are mutually exclusive and percentage is capped', asy
     ],
     {},
   );
+  const receiveWithAmount = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'sell', '--pair', 'BTC-USDT',
+      '--amount', '1', '--receive', '5', '--dryrun',
+    ],
+    {},
+  );
+  const receiveBuy = await runWithClient(
+    [
+      'order', '--type', 'market', '--side', 'buy', '--pair', 'BTC-USDT',
+      '--receive', '5', '--dryrun',
+    ],
+    {},
+  );
 
   assert.equal(both.code, 1);
-  assert.match(both.error, /exactly one of --amount or --balance-percent/);
+  assert.match(
+    both.error,
+    /exactly one of --amount, --balance-percent or --receive/,
+  );
   assert.equal(tooHigh.code, 1);
   assert.match(tooHigh.error, /at most 100/);
+  assert.equal(receiveWithAmount.code, 1);
+  assert.match(receiveWithAmount.error, /exactly one/);
+  assert.equal(receiveBuy.code, 1);
+  assert.match(receiveBuy.error, /--receive can only be used with sell orders/);
 });
 
 test('limit price-percent is calculated and dryrun never submits', async () => {

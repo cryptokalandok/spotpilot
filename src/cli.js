@@ -6,6 +6,7 @@ import {
   applyPercent,
   compareDecimals,
   divideDecimals,
+  divideDecimalsCeil,
   multiplyDecimals,
   percentageOf,
   subtractDecimals,
@@ -25,7 +26,7 @@ import {
 } from './normalizers.js';
 import { configureDnsResultOrder } from './network.js';
 
-const VERSION = '0.7.0';
+const VERSION = '0.8.0';
 const DEFAULT_BUY_RESERVE_PERCENT = '0.5';
 const BOOLEAN_OPTIONS = new Set(['help', 'yes', 'dryrun', 'debug']);
 
@@ -100,7 +101,7 @@ export async function runCli(argv, dependencies = {}) {
       case 'order':
         assertKnownOptions(options, [
           'exchange', 'type', 'side', 'order', 'pair', 'amount', 'price',
-          'balance-percent', 'reserve-percent', 'price-percent', 'yes',
+          'balance-percent', 'receive', 'reserve-percent', 'price-percent', 'yes',
           'dryrun', 'debug',
         ]);
         await submitOrder(client, options, {
@@ -190,12 +191,21 @@ async function submitOrder(
   const side = normalizeChoice(sideOption, 'side', ['buy', 'sell']);
   const hasAmount = options.amount !== undefined;
   const hasBalancePercent = options['balance-percent'] !== undefined;
+  const hasReceive = options.receive !== undefined;
   const hasPrice = options.price !== undefined;
   const hasPricePercent = options['price-percent'] !== undefined;
 
-  if (hasAmount === hasBalancePercent) {
+  const sizingOptionCount = [hasAmount, hasBalancePercent, hasReceive]
+    .filter(Boolean)
+    .length;
+  if (sizingOptionCount !== 1) {
     throw new SpotPilotValidationError(
-      'Use exactly one of --amount or --balance-percent',
+      'Use exactly one of --amount, --balance-percent or --receive',
+    );
+  }
+  if (hasReceive && side !== 'sell') {
+    throw new SpotPilotValidationError(
+      '--receive can only be used with sell orders',
     );
   }
   if (
@@ -257,6 +267,18 @@ async function submitOrder(
       buyReservePercent,
       stdout,
     }));
+  } else if (hasReceive) {
+    ({ amount, marketPrice } = await resolveReceiveSellOrder({
+      client,
+      options,
+      pair,
+      base,
+      quote,
+      price,
+      marketPrice,
+      stdout,
+    }));
+    await checkSellBalance(client, base, amount, stdout);
   } else if (side === 'sell') {
     await checkSellBalance(client, base, amount, stdout);
   } else {
@@ -425,6 +447,58 @@ async function resolveBalancePercentOrder({
   );
 
   return { amount, amountAsset: undefined, marketPrice };
+}
+
+async function resolveReceiveSellOrder({
+  client,
+  options,
+  pair,
+  base,
+  quote,
+  price,
+  marketPrice,
+  stdout,
+}) {
+  const target = normalizePositiveDecimal(options.receive, 'receive');
+  if (typeof client.getMarketInfo !== 'function') {
+    throw new SpotPilotValidationError(
+      'The selected exchange client does not provide market precision metadata',
+    );
+  }
+
+  const marketInfo = await client.getMarketInfo(pair);
+  if (!price) {
+    marketPrice = marketPrice ?? await client.getPrice(pair);
+  }
+  const referencePrice = price ?? marketPrice.price;
+  const amount = divideDecimalsCeil(
+    target,
+    referencePrice,
+    marketInfo.basePrecision,
+  );
+
+  if (compareDecimals(amount, '0') <= 0) {
+    throw new SpotPilotValidationError(
+      `The calculated ${base} order amount rounds to zero`,
+    );
+  }
+
+  assertMinimumAmount(amount, marketInfo, base);
+  const estimatedGross = multiplyDecimals(amount, referencePrice);
+  const priceKind = price ? 'limit price' : 'last traded price';
+
+  stdout(`Receive target: ${target} ${quote} gross`);
+  stdout(
+    `Calculated order amount: ${amount} ${base} using ${referencePrice} ` +
+    `${quote} per ${base} (${priceKind}, rounded up to ` +
+    `${marketInfo.basePrecision} decimal places)`,
+  );
+  stdout(
+    `Estimated gross proceeds: ${estimatedGross} ${quote} ` +
+    '(exchange fees and market-order slippage excluded)',
+  );
+
+  return { amount, marketPrice };
 }
 
 async function checkSellBalance(client, base, amount, stdout) {
@@ -683,6 +757,7 @@ Examples:
   node spotpilot balance --exchange coinex --coin QUAI,RVN
   node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --amount 0.001
   node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --balance-percent 100
+  node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --receive 100 --dryrun
   node spotpilot order --exchange coinex --type market --side buy --pair BTC-USDT --balance-percent 100 --dryrun
   node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price-percent 10
   node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price 60000 --dryrun
@@ -705,7 +780,8 @@ Options:
   --pair BTC-USDT       Trading pair; required
   --amount 0.001        Exact base-asset amount
   --balance-percent 100 Percentage of available base (sell) or quote (buy)
-                        Use exactly one of --amount or --balance-percent
+  --receive 100         Target gross quote proceeds for a sell order
+                        Use exactly one of --amount, --balance-percent or --receive
   --reserve-percent 0.5 Buy-side reserve used with --balance-percent
                         (default: SPOTPILOT_BUY_RESERVE_PERCENT or 0.5)
   --price 0.28          Exact limit price
