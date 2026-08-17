@@ -8,34 +8,94 @@ API credentials should be stored in `.env`, not passed as command-line
 arguments. Create dedicated exchange credentials with spot-trading permission
 only and disable withdrawals.
 
-## Prerequisites
+## What you need
 
-- Node.js 20 or newer
-- npm
-- a local checkout or extracted copy of this repository
+- Node.js 20 or newer; the current LTS release is recommended
+- an extracted SpotPilot release package or a Git checkout of the repository
+- internet access to the configured exchanges
 - an API key and secret for each exchange whose private endpoints you use
 
-Check the installed versions:
+`npm` is included with the normal Node.js installation. Git is only required if
+you choose to clone the source instead of downloading a release package.
 
-```text
-node --version
-npm --version
-```
+## Choose an installation method
 
-The Node.js version must start with `v20` or a newer major version. If Node.js
-is missing or too old, install a current LTS release from the
-[official Node.js download page](https://nodejs.org/en/download). Do not assume
-that an older Linux distribution's default `nodejs` package satisfies the
-version requirement.
+| Method | Recommended for | Additional installation step |
+| --- | --- | --- |
+| Release archive | Regular users | None; production dependencies are included |
+| Git checkout | Contributors or users following the latest source | Run `npm ci` after cloning and after each update |
+
+Release archives are available on the
+[SpotPilot Releases page](https://github.com/cryptokalandok/spotpilot/releases).
+They are not standalone executables: Node.js must still be installed on the
+computer. Do not run `npm install` inside an extracted release archive.
 
 ## HiveOS and Linux
 
-Open a terminal, change to the SpotPilot directory and install its dependency:
+These commands apply to HiveOS, Ubuntu and other Debian-based distributions.
+HiveOS terminals normally run as `root`; in that case omit `sudo` from the
+commands.
+
+### 1. Install Node.js and basic tools
+
+First install the tools needed to download and configure Node.js:
 
 ```bash
-cd /path/to/spotpilot
-npm install
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl nano
 ```
+
+Install the current Node.js LTS release system-wide. A system-wide installation
+gives scheduled tasks a stable Node.js path:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup.sh
+sudo -E bash /tmp/nodesource_setup.sh
+sudo apt-get install -y nodejs
+```
+
+The commands above use the
+[NodeSource Debian packages](https://github.com/nodesource/distributions). If
+your distribution is not Debian-based, select its installation method on the
+[official Node.js download page](https://nodejs.org/en/download).
+
+Verify the installation before continuing:
+
+```bash
+node --version
+npm --version
+command -v node
+```
+
+The Node.js version must start with `v20` or a newer major version. If an older
+version is displayed, remove or update the previous Node.js installation before
+continuing.
+
+### 2. Download SpotPilot
+
+For the recommended release installation, download the Linux `.tar.gz` asset
+from the [latest release](https://github.com/cryptokalandok/spotpilot/releases/latest),
+then extract it. Replace `X.Y.Z` with the downloaded version:
+
+```bash
+tar -xzf spotpilot-vX.Y.Z-linux.tar.gz
+cd spotpilot-vX.Y.Z-linux
+```
+
+To use a Git checkout instead, install Git, clone the repository and install
+the exact dependencies recorded in `package-lock.json`:
+
+```bash
+sudo apt-get install -y git
+git clone https://github.com/cryptokalandok/spotpilot.git
+cd spotpilot
+npm ci
+```
+
+Run `npm ci` again after pulling a new source version. Skip it when using the
+release archive because that package already contains production dependencies.
+
+### 3. Create the configuration
 
 Create the local configuration from the tracked example:
 
@@ -51,12 +111,12 @@ Restrict the file so only its owner can read or modify it:
 chmod 600 .env
 ```
 
+### 4. Verify the installation
+
 Verify that SpotPilot starts from this directory:
 
 ```bash
 node spotpilot --help
-npm run check
-npm test
 ```
 
 The public smoke tests verify Node.js, DNS and exchange connectivity without
@@ -65,6 +125,14 @@ submitting an order:
 ```bash
 npm run smoke:coinex
 npm run smoke:safetrade
+```
+
+If you installed from Git and want to validate the source checkout as well,
+run:
+
+```bash
+npm run check
+npm test
 ```
 
 ### HiveOS and cron working directory
@@ -87,39 +155,107 @@ Avoid placing API keys directly in a crontab or HiveOS flight sheet command.
 
 ## Windows
 
-Install Node.js 20 or newer, then open a new PowerShell window so the `node` and
-`npm` commands are available. Change to the extracted or cloned repository:
+The following commands use PowerShell. You do not need Windows Subsystem for
+Linux (WSL).
+
+### 1. Install Node.js
+
+On Windows 10 or 11, install the current Node.js LTS release with `winget`:
 
 ```powershell
-Set-Location C:\path\to\spotpilot
-npm install
+winget install --id OpenJS.NodeJS.LTS -e
 ```
 
-Create and edit the configuration file:
+If `winget` is unavailable, download and run the LTS Windows installer from the
+[official Node.js download page](https://nodejs.org/en/download). Keep the
+installer's default option that adds Node.js to `PATH`; npm is installed with
+Node.js.
+
+Close PowerShell after the installation and open a new window, then verify the
+commands and the installed Node.js path:
+
+```powershell
+node --version
+npm --version
+(Get-Command node).Source
+```
+
+The Node.js version must start with `v20` or a newer major version.
+
+### 2. Download SpotPilot
+
+For the recommended installation:
+
+1. Open the [latest release](https://github.com/cryptokalandok/spotpilot/releases/latest).
+2. Download `spotpilot-vX.Y.Z-windows.zip` from **Assets**.
+3. Right-click the downloaded file, select **Extract All**, and move the
+   extracted directory somewhere permanent, for example into your user
+   directory.
+4. Open PowerShell in the extracted SpotPilot directory.
+
+You can also change directory manually. Replace the example path with the
+actual extracted directory:
+
+```powershell
+Set-Location "$HOME\SpotPilot\spotpilot-vX.Y.Z-windows"
+```
+
+The release package contains its production dependencies, so do not run
+`npm install` in it.
+
+To use the Git checkout instead, install Git, open a new PowerShell window,
+clone the repository and install its locked dependencies:
+
+```powershell
+winget install --id Git.Git -e
+```
+
+Close PowerShell, open a new window, then run:
+
+```powershell
+git clone https://github.com/cryptokalandok/spotpilot.git
+Set-Location .\spotpilot
+npm ci
+```
+
+Run `npm ci` again after pulling a new source version.
+
+### 3. Create the configuration
+
+Create and edit the configuration file from the SpotPilot directory:
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
 ```
 
-Keep the repository in your Windows user directory rather than a shared or
-cloud-synchronized folder. `.env` is ignored by Git, but it is still a normal
-local file and must not be emailed, uploaded or committed.
+Keep the SpotPilot directory in your Windows user directory rather than a
+shared or cloud-synchronized folder. `.env` is ignored by Git, but it is still
+a normal local file and must not be emailed, uploaded or committed.
 
-Verify the installation from the repository directory:
+### 4. Verify the installation
+
+Verify the installation from the SpotPilot directory:
 
 ```powershell
-node .\spotpilot --help
+.\spotpilot.cmd --help
+npm run smoke:coinex
+npm run smoke:safetrade
+```
+
+If you installed from Git and want to validate the source checkout as well,
+run:
+
+```powershell
 npm run check
 npm test
-npm run smoke:coinex
 ```
 
 PowerShell variables can temporarily override `.env` for the current terminal:
 
 ```powershell
 $env:SPOTPILOT_EXCHANGE = "coinex"
-node .\spotpilot price --pair BTC-USDT
+.\spotpilot.cmd price --pair BTC-USDT
 ```
 
 Do not use `setx` for exchange secrets. It stores them persistently in the
@@ -132,7 +268,7 @@ When creating a scheduled task, configure these fields:
 | Task Scheduler field | Value |
 | --- | --- |
 | Program/script | `C:\Program Files\nodejs\node.exe` |
-| Add arguments | `C:\path\to\spotpilot\spotpilot` followed by the command and its options |
+| Add arguments | `"C:\path\to\spotpilot\spotpilot"` followed by the command and its options |
 | Start in | `C:\path\to\spotpilot` |
 
 Do not put quotes in **Start in**. Setting it to the repository directory is
@@ -209,7 +345,7 @@ Start with a read-only balance request for the configured exchange:
 node spotpilot balance --exchange coinex --coin BTC,USDT
 ```
 
-On Windows PowerShell, use `node .\spotpilot` instead. Before submitting a real
+On Windows PowerShell, use `.\spotpilot.cmd` instead. Before submitting a real
 order, run the intended command with `--dryrun`. A dryrun performs private
 read-only calls and local validation but does not submit the order:
 
