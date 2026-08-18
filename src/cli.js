@@ -242,6 +242,11 @@ async function submitOrder(
     : undefined;
   let amountAsset;
 
+  if (hasAmount) {
+    const marketInfo = await requireMarketInfo(client, pair);
+    assertMinimumAmount(amount, marketInfo, base);
+  }
+
   if (hasPrice) {
     price = normalizePositiveDecimal(options.price, 'price');
   } else if (hasPricePercent) {
@@ -360,13 +365,7 @@ async function resolveBalancePercentOrder({
   stdout,
 }) {
   const balancePercent = normalizeBalancePercent(options['balance-percent']);
-  if (typeof client.getMarketInfo !== 'function') {
-    throw new SpotPilotValidationError(
-      'The selected exchange client does not provide market precision metadata',
-    );
-  }
-
-  const marketInfo = await client.getMarketInfo(pair);
+  const marketInfo = await requireMarketInfo(client, pair);
   const balanceAsset = side === 'sell' ? base : quote;
   const balancePrecision = side === 'sell'
     ? marketInfo.basePrecision
@@ -460,13 +459,7 @@ async function resolveReceiveSellOrder({
   stdout,
 }) {
   const target = normalizePositiveDecimal(options.receive, 'receive');
-  if (typeof client.getMarketInfo !== 'function') {
-    throw new SpotPilotValidationError(
-      'The selected exchange client does not provide market precision metadata',
-    );
-  }
-
-  const marketInfo = await client.getMarketInfo(pair);
+  const marketInfo = await requireMarketInfo(client, pair);
   if (!price) {
     marketPrice = marketPrice ?? await client.getPrice(pair);
   }
@@ -506,10 +499,20 @@ async function checkSellBalance(client, base, amount, stdout) {
   const available = balance?.available ?? '0';
   if (compareDecimals(available, amount) < 0) {
     throw new SpotPilotValidationError(
-      `Insufficient ${base} balance: ${available} available, ${amount} required`,
+      `Insufficient ${base} balance: ${available} available, ` +
+      `${amount} requested for this order`,
     );
   }
   stdout(`Balance check: ${available} ${base} available`);
+}
+
+async function requireMarketInfo(client, pair) {
+  if (typeof client.getMarketInfo !== 'function') {
+    throw new SpotPilotValidationError(
+      'The selected exchange client does not provide market precision metadata',
+    );
+  }
+  return client.getMarketInfo(pair);
 }
 
 function assertMinimumAmount(amount, marketInfo, base) {
@@ -518,9 +521,10 @@ function assertMinimumAmount(amount, marketInfo, base) {
     marketInfo.minAmount !== undefined &&
     compareDecimals(amount, marketInfo.minAmount) < 0
   ) {
+    const market = marketInfo.pair ?? marketInfo.market ?? 'selected';
     throw new SpotPilotValidationError(
-      `Calculated ${base} amount ${amount} is below the market minimum ` +
-      `${marketInfo.minAmount}`,
+      `Order amount ${amount} ${base} is below the ${market} market minimum ` +
+      `of ${marketInfo.minAmount} ${base}`,
     );
   }
 }

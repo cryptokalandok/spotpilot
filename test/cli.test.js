@@ -142,6 +142,10 @@ test('market sell checks available balance and submits after --yes', async () =>
       '--pair', 'BTC-USDT', '--amount', '10', '--yes',
     ],
     {
+      getMarketInfo: async () => ({
+        pair: 'BTC-USDT',
+        minAmount: '10',
+      }),
       getBalance: async () => ({ available: '10.5' }),
       createOrder: async (order) => {
         submitted.push(order);
@@ -164,6 +168,10 @@ test('insufficient sell balance prevents submission', async () => {
       '--pair', 'BTC-USDT', '--amount', '10', '--yes',
     ],
     {
+      getMarketInfo: async () => ({
+        pair: 'BTC-USDT',
+        minAmount: '0.0005',
+      }),
       getBalance: async () => ({ available: '9.99' }),
       createOrder: async () => { submitted = true; },
     },
@@ -172,6 +180,64 @@ test('insufficient sell balance prevents submission', async () => {
   assert.equal(submitted, false);
   assert.match(result.error, /Insufficient BTC balance/);
 });
+
+for (const exchange of [
+  {
+    id: 'safetrade',
+    name: 'SafeTrade',
+    pair: 'BTC-USDT',
+    amount: '0.0001',
+    minimum: '0.0005',
+    base: 'BTC',
+  },
+  {
+    id: 'coinex',
+    name: 'CoinEx',
+    pair: 'PEARL-USDT',
+    amount: '2',
+    minimum: '5',
+    base: 'PEARL',
+  },
+]) {
+  test(`explicit amount honors the ${exchange.name} market minimum`, async () => {
+    let priceRequested = false;
+    let balanceRequested = false;
+    const result = await runWithClient(
+      [
+        'order', '--exchange', exchange.id, '--type', 'limit', '--side', 'sell',
+        '--pair', exchange.pair, '--amount', exchange.amount,
+        '--price-percent', '8', '--dryrun',
+      ],
+      {
+        getMarketInfo: async (pair) => {
+          assert.equal(pair, exchange.pair);
+          return {
+            pair,
+            minAmount: exchange.minimum,
+          };
+        },
+        getPrice: async () => {
+          priceRequested = true;
+          return { price: '0.26557237' };
+        },
+        getBalance: async () => {
+          balanceRequested = true;
+          return { available: '100' };
+        },
+      },
+    );
+
+    assert.equal(result.code, 1);
+    assert.equal(priceRequested, false);
+    assert.equal(balanceRequested, false);
+    assert.ok(
+      result.error.includes(
+        `Order amount ${exchange.amount} ${exchange.base} is below the ` +
+        `${exchange.pair} market minimum of ${exchange.minimum} ${exchange.base}`,
+      ),
+    );
+  });
+}
 
 test('market sell derives a base amount from the target quote proceeds', async () => {
   const submitted = [];
@@ -392,6 +458,10 @@ test('limit price-percent is calculated and dryrun never submits', async () => {
       '--pair', 'BTC-USDT', '--price-percent', '10', '--dryrun',
     ],
     {
+      getMarketInfo: async () => ({
+        pair: 'BTC-USDT',
+        minAmount: '0.0005',
+      }),
       getPrice: async () => ({ price: '0.28000000' }),
       getBalance: async () => ({ available: '100' }),
       createOrder: async () => { submitted = true; },
@@ -423,6 +493,10 @@ test('interactive rejection cancels without submission', async () => {
       '--pair', 'BTC-USDT', '--amount', '1',
     ],
     {
+      getMarketInfo: async () => ({
+        pair: 'BTC-USDT',
+        minAmount: '0.0005',
+      }),
       getBalance: async () => ({ available: '2' }),
       createOrder: async () => { submitted = true; },
     },
