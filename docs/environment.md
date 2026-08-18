@@ -1,6 +1,6 @@
 # Environment setup
 
-This guide configures SpotPilot on HiveOS/Linux or Windows. SpotPilot reads a
+This guide configures Hozamo on HiveOS/Linux or Windows. Hozamo reads a
 `.env` file from the **current working directory** every time the CLI starts.
 Operating-system environment variables override values from `.env`.
 
@@ -11,7 +11,7 @@ only and disable withdrawals.
 ## What you need
 
 - Node.js 20 or newer; the current LTS release is recommended
-- an extracted SpotPilot release package or a Git checkout of the repository
+- an extracted Hozamo release package or a Git checkout of the repository
 - internet access to the configured exchanges
 - an API key and secret for each exchange whose private endpoints you use
 
@@ -26,7 +26,7 @@ you choose to clone the source instead of downloading a release package.
 | Git checkout | Contributors or users following the latest source | Run `npm ci` after cloning and after each update |
 
 Release archives are available on the
-[SpotPilot Releases page](https://github.com/cryptokalandok/spotpilot/releases).
+[Hozamo Releases page](https://github.com/cryptokalandok/hozamo/releases).
 They are not standalone executables: Node.js must still be installed on the
 computer. Do not run `npm install` inside an extracted release archive.
 
@@ -71,15 +71,15 @@ The Node.js version must start with `v20` or a newer major version. If an older
 version is displayed, remove or update the previous Node.js installation before
 continuing.
 
-### 2. Download SpotPilot
+### 2. Download Hozamo
 
 For the recommended release installation, download the Linux `.tar.gz` asset
-from the [latest release](https://github.com/cryptokalandok/spotpilot/releases/latest),
+from the [latest release](https://github.com/cryptokalandok/hozamo/releases/latest),
 then extract it. Replace `X.Y.Z` with the downloaded version:
 
 ```bash
-tar -xzf spotpilot-vX.Y.Z-linux.tar.gz
-cd spotpilot-vX.Y.Z-linux
+tar -xzf hozamo-vX.Y.Z-linux.tar.gz
+cd hozamo-vX.Y.Z-linux
 ```
 
 To use a Git checkout instead, install Git, clone the repository and install
@@ -87,8 +87,8 @@ the exact dependencies recorded in `package-lock.json`:
 
 ```bash
 sudo apt-get install -y git
-git clone https://github.com/cryptokalandok/spotpilot.git
-cd spotpilot
+git clone https://github.com/cryptokalandok/hozamo.git
+cd hozamo
 npm ci
 ```
 
@@ -113,10 +113,10 @@ chmod 600 .env
 
 ### 4. Verify the installation
 
-Verify that SpotPilot starts from this directory:
+Verify that Hozamo starts from this directory:
 
 ```bash
-node spotpilot --help
+node hozamo --help
 ```
 
 The public smoke tests verify Node.js, DNS and exchange connectivity without
@@ -137,12 +137,12 @@ npm test
 
 ### HiveOS and cron working directory
 
-SpotPilot looks for `.env` in the process's current working directory. A cron
+Hozamo looks for `.env` in the process's current working directory. A cron
 job or HiveOS command must therefore change to the repository before starting
 the CLI. For example:
 
 ```cron
-0 12 * * * cd /path/to/spotpilot && /usr/bin/node ./spotpilot balance --exchange coinex --coin BTC >> /var/log/spotpilot.log 2>&1
+0 12 * * * cd /path/to/hozamo && /usr/bin/node ./hozamo balance --exchange coinex --coin BTC >> /var/log/hozamo.log 2>&1
 ```
 
 Confirm the actual Node.js path before using it in cron:
@@ -182,22 +182,22 @@ npm --version
 
 The Node.js version must start with `v20` or a newer major version.
 
-### 2. Download SpotPilot
+### 2. Download Hozamo
 
 For the recommended installation:
 
-1. Open the [latest release](https://github.com/cryptokalandok/spotpilot/releases/latest).
-2. Download `spotpilot-vX.Y.Z-windows.zip` from **Assets**.
+1. Open the [latest release](https://github.com/cryptokalandok/hozamo/releases/latest).
+2. Download `hozamo-vX.Y.Z-windows.zip` from **Assets**.
 3. Right-click the downloaded file, select **Extract All**, and move the
    extracted directory somewhere permanent, for example into your user
    directory.
-4. Open PowerShell in the extracted SpotPilot directory.
+4. Open PowerShell in the extracted Hozamo directory.
 
 You can also change directory manually. Replace the example path with the
 actual extracted directory:
 
 ```powershell
-Set-Location "$HOME\SpotPilot\spotpilot-vX.Y.Z-windows"
+Set-Location "$HOME\Hozamo\hozamo-vX.Y.Z-windows"
 ```
 
 The release package contains its production dependencies, so do not run
@@ -213,8 +213,8 @@ winget install --id Git.Git -e
 Close PowerShell, open a new window, then run:
 
 ```powershell
-git clone https://github.com/cryptokalandok/spotpilot.git
-Set-Location .\spotpilot
+git clone https://github.com/cryptokalandok/hozamo.git
+Set-Location .\hozamo
 npm ci
 ```
 
@@ -222,23 +222,23 @@ Run `npm ci` again after pulling a new source version.
 
 ### 3. Create the configuration
 
-Create and edit the configuration file from the SpotPilot directory:
+Create and edit the configuration file from the Hozamo directory:
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
 ```
 
-Keep the SpotPilot directory in your Windows user directory rather than a
+Keep the Hozamo directory in your Windows user directory rather than a
 shared or cloud-synchronized folder. `.env` is ignored by Git, but it is still
 a normal local file and must not be emailed, uploaded or committed.
 
 ### 4. Verify the installation
 
-Verify the installation from the SpotPilot directory:
+Verify the installation from the Hozamo directory:
 
 ```powershell
-.\spotpilot.cmd --help
+.\hozamo.cmd --help
 npm run smoke:coinex
 npm run smoke:safetrade
 ```
@@ -254,8 +254,8 @@ npm test
 PowerShell variables can temporarily override `.env` for the current terminal:
 
 ```powershell
-$env:SPOTPILOT_EXCHANGE = "coinex"
-.\spotpilot.cmd price --pair BTC-USDT
+$env:HOZAMO_EXCHANGE = "coinex"
+.\hozamo.cmd price --pair BTC-USDT
 ```
 
 Do not use `setx` for exchange secrets. It stores them persistently in the
@@ -268,11 +268,11 @@ When creating a scheduled task, configure these fields:
 | Task Scheduler field | Value |
 | --- | --- |
 | Program/script | `C:\Program Files\nodejs\node.exe` |
-| Add arguments | `"C:\path\to\spotpilot\spotpilot"` followed by the command and its options |
-| Start in | `C:\path\to\spotpilot` |
+| Add arguments | `"C:\path\to\hozamo\hozamo"` followed by the command and its options |
+| Start in | `C:\path\to\hozamo` |
 
 Do not put quotes in **Start in**. Setting it to the repository directory is
-required for SpotPilot to find `.env`. Use an absolute path for the script and
+required for Hozamo to find `.env`. Use an absolute path for the script and
 test the exact command interactively before scheduling it.
 
 ## Configure `.env`
@@ -281,8 +281,8 @@ Choose a default exchange and add credentials for the exchange you use. A
 minimal CoinEx configuration looks like this:
 
 ```dotenv
-SPOTPILOT_EXCHANGE=coinex
-SPOTPILOT_DNS_RESULT_ORDER=ipv4first
+HOZAMO_EXCHANGE=coinex
+HOZAMO_DNS_RESULT_ORDER=ipv4first
 
 COINEX_API_KEY=replace-with-a-trading-only-access-id
 COINEX_API_SECRET=replace-with-the-secret-key
@@ -291,8 +291,8 @@ COINEX_API_SECRET=replace-with-the-secret-key
 A minimal SafeTrade configuration looks like this:
 
 ```dotenv
-SPOTPILOT_EXCHANGE=safetrade
-SPOTPILOT_DNS_RESULT_ORDER=ipv4first
+HOZAMO_EXCHANGE=safetrade
+HOZAMO_DNS_RESULT_ORDER=ipv4first
 
 SAFETRADE_API_KEY=replace-with-a-trading-only-api-key
 SAFETRADE_API_SECRET=replace-with-the-api-secret
@@ -300,7 +300,7 @@ SAFETRADE_API_SECRET=replace-with-the-api-secret
 
 You may keep credentials for both exchanges in the same file and select one
 with `--exchange safetrade|coinex` per command. The command-line option takes
-precedence over `SPOTPILOT_EXCHANGE`.
+precedence over `HOZAMO_EXCHANGE`.
 
 The `.env` syntax is one `NAME=value` entry per line. Comments must start on
 their own line with `#`. Do not add `export` before variable names. Single- or
@@ -311,11 +311,11 @@ do not need quotes.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `SPOTPILOT_EXCHANGE` | No | Default exchange: `safetrade` or `coinex`; defaults to `safetrade` |
-| `SPOTPILOT_DNS_RESULT_ORDER` | No | DNS preference: `ipv4first`, `ipv6first` or `verbatim`; defaults to `ipv4first` |
-| `SPOTPILOT_PROXY_URL` | No | Global HTTP(S) forward proxy used for every exchange request |
-| `SPOTPILOT_BUY_RESERVE_PERCENT` | No | Quote-balance reserve for percentage-sized buys; defaults to `0.5` |
-| `SPOTPILOT_TIMEOUT_MS` | No | Shared positive integer request timeout in milliseconds; defaults to `15000` |
+| `HOZAMO_EXCHANGE` | No | Default exchange: `safetrade` or `coinex`; defaults to `safetrade` |
+| `HOZAMO_DNS_RESULT_ORDER` | No | DNS preference: `ipv4first`, `ipv6first` or `verbatim`; defaults to `ipv4first` |
+| `HOZAMO_PROXY_URL` | No | Global HTTP(S) forward proxy used for every exchange request |
+| `HOZAMO_BUY_RESERVE_PERCENT` | No | Quote-balance reserve for percentage-sized buys; defaults to `0.5` |
+| `HOZAMO_TIMEOUT_MS` | No | Shared positive integer request timeout in milliseconds; defaults to `15000` |
 | `SAFETRADE_API_KEY` | Private SafeTrade calls | SafeTrade trading API key |
 | `SAFETRADE_API_SECRET` | Private SafeTrade calls | SafeTrade API secret |
 | `SAFETRADE_BASE_URL` | No | SafeTrade API base URL override |
@@ -326,12 +326,12 @@ do not need quotes.
 | `COINEX_TIMEOUT_MS` | No | CoinEx-specific timeout when the shared timeout is unset |
 | `COINEX_WINDOW_TIME_MS` | No | CoinEx request validity window; defaults to `5000` |
 
-Leave `SPOTPILOT_PROXY_URL` unset or empty for a direct connection. If a proxy
+Leave `HOZAMO_PROXY_URL` unset or empty for a direct connection. If a proxy
 is needed, use one of these forms:
 
 ```dotenv
-SPOTPILOT_PROXY_URL=http://proxy.example.com:3128
-SPOTPILOT_PROXY_URL=https://username:password@proxy.example.com:8443
+HOZAMO_PROXY_URL=http://proxy.example.com:3128
+HOZAMO_PROXY_URL=https://username:password@proxy.example.com:8443
 ```
 
 URL-encode special characters in proxy usernames or passwords. See the
@@ -342,15 +342,15 @@ URL-encode special characters in proxy usernames or passwords. See the
 Start with a read-only balance request for the configured exchange:
 
 ```bash
-node spotpilot balance --exchange coinex --coin BTC,USDT
+node hozamo balance --exchange coinex --coin BTC,USDT
 ```
 
-On Windows PowerShell, use `.\spotpilot.cmd` instead. Before submitting a real
+On Windows PowerShell, use `.\hozamo.cmd` instead. Before submitting a real
 order, run the intended command with `--dryrun`. A dryrun performs private
 read-only calls and local validation but does not submit the order:
 
 ```bash
-node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --amount 0.001 --dryrun
+node hozamo order --exchange coinex --type market --side sell --pair BTC-USDT --amount 0.001 --dryrun
 ```
 
 Use an amount that is available in the account. After validating the output,
@@ -358,7 +358,7 @@ test the smallest real order permitted by the selected exchange.
 
 ## Troubleshooting
 
-### SpotPilot does not see `.env`
+### Hozamo does not see `.env`
 
 Check the current directory and confirm that `.env` exists there:
 
@@ -380,13 +380,13 @@ same `.env` entry.
 ### Private calls report missing credentials
 
 Confirm that the credentials match the exchange selected by `--exchange` or
-`SPOTPILOT_EXCHANGE`, and that each entry uses the exact `NAME=value` syntax.
+`HOZAMO_EXCHANGE`, and that each entry uses the exact `NAME=value` syntax.
 The price command is public, so a successful price lookup does not prove that
 private credentials are configured correctly.
 
 ### SafeTrade returns HTTP 403
 
-SpotPilot prefers IPv4 by default, but SafeTrade may still require the public
+Hozamo prefers IPv4 by default, but SafeTrade may still require the public
 outbound IP address to be allowlisted. Run the SafeTrade smoke test with
 `--debug`, confirm the host's public IPv4 address and contact SafeTrade support
 if the request is blocked. A configured global proxy can provide a stable

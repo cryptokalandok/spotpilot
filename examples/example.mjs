@@ -3,7 +3,7 @@ import {
   SafeTradeClient,
 } from '../src/index.js';
 
-configureDnsResultOrder(process.env.SPOTPILOT_DNS_RESULT_ORDER);
+configureDnsResultOrder(process.env.HOZAMO_DNS_RESULT_ORDER);
 
 const client = new SafeTradeClient({
   apiKey: process.env.SAFETRADE_API_KEY,

@@ -5,8 +5,8 @@ import { runCli } from '../src/cli.js';
 test('no command prints help instead of doing nothing', async () => {
   const result = await runWithClient([], {});
   assert.equal(result.code, 0);
-  assert.match(result.output, /SpotPilot 0\.8\.0/);
-  assert.match(result.output, /node spotpilot price/);
+  assert.match(result.output, /Hozamo 0\.8\.0/);
+  assert.match(result.output, /node hozamo price/);
 });
 
 test('--exchange coinex selects the CoinEx client', async () => {
@@ -56,7 +56,7 @@ test('CLI DNS result order can be overridden from the environment', async () => 
     ['price', '--pair', 'BTC-USDT'],
     { getPrice: async () => ({ price: '60000' }) },
     {
-      env: { SPOTPILOT_DNS_RESULT_ORDER: 'verbatim' },
+      env: { HOZAMO_DNS_RESULT_ORDER: 'verbatim' },
       setDnsResultOrder: (value) => dnsOrders.push(value),
     },
   );

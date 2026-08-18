@@ -3,8 +3,8 @@ import { createHmac } from 'node:crypto';
 import test from 'node:test';
 import {
   CoinExClient,
-  SpotPilotApiError,
-  SpotPilotConfigError,
+  HozamoApiError,
+  HozamoConfigError,
   createCoinExSignature,
   createExchangeClient,
   normalizeCoinExMarket,
@@ -227,7 +227,7 @@ test('CoinEx non-zero API code becomes a structured error', async () => {
   }));
 
   await assert.rejects(client.getBalances(), (error) => {
-    assert.ok(error instanceof SpotPilotApiError);
+    assert.ok(error instanceof HozamoApiError);
     assert.equal(error.exchange, 'coinex');
     assert.equal(error.code, 'COINEX_API_ERROR');
     assert.equal(error.apiCode, 4006);
@@ -241,7 +241,7 @@ test('CoinEx private calls require CoinEx credentials', async () => {
       throw new Error('fetch should not be called');
     },
   });
-  await assert.rejects(client.getBalances(), SpotPilotConfigError);
+  await assert.rejects(client.getBalances(), HozamoConfigError);
 });
 
 test('exchange factory builds a CoinEx client from CoinEx environment keys', () => {
@@ -264,7 +264,7 @@ test('exchange factory proxies CoinEx requests when globally configured', async 
     env: {
       COINEX_API_KEY: 'key',
       COINEX_API_SECRET: 'secret',
-      SPOTPILOT_PROXY_URL: 'http://proxy.example.com:3128',
+      HOZAMO_PROXY_URL: 'http://proxy.example.com:3128',
     },
     fetchImpl: async (url, options) => {
       calls.push({ url, options });

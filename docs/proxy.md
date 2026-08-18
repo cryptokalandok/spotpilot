@@ -1,11 +1,11 @@
-# SpotPilot HTTPS proxy
+# Hozamo HTTPS proxy
 
 This setup provides an authenticated HTTPS forward proxy with a stable IPv4
-egress address. It supports every current SpotPilot API request while limiting
+egress address. It supports every current Hozamo API request while limiting
 the proxy destination allowlist to SafeTrade and CoinEx.
 
 The outer TLS connection protects the proxy username and password. Inside it,
-`CONNECT` creates an opaque TCP tunnel. SpotPilot then performs a separate,
+`CONNECT` creates an opaque TCP tunnel. Hozamo then performs a separate,
 normally verified TLS handshake directly with the selected exchange.
 
 ## What the proxy can and cannot see
@@ -18,7 +18,7 @@ The proxy can observe:
 
 It cannot read the exchange URL path, API key, signature, request body or API
 response. It can block or slow a connection. If it tries to replace the
-exchange certificate, Node.js rejects the TLS connection because SpotPilot
+exchange certificate, Node.js rejects the TLS connection because Hozamo
 does not trust a proxy CA and never disables certificate verification.
 
 ## Ubuntu installation
@@ -131,22 +131,22 @@ Edit `PROXY_DOMAIN` in the supplied renewal-hook example, then install it:
 
 ```bash
 sudo cp deploy/proxy/renew-certificate.sh.example \
-  /etc/letsencrypt/renewal-hooks/deploy/spotpilot-squid
+  /etc/letsencrypt/renewal-hooks/deploy/hozamo-squid
 sudo chmod 0755 \
-  /etc/letsencrypt/renewal-hooks/deploy/spotpilot-squid
-sudo /etc/letsencrypt/renewal-hooks/deploy/spotpilot-squid
+  /etc/letsencrypt/renewal-hooks/deploy/hozamo-squid
+sudo /etc/letsencrypt/renewal-hooks/deploy/hozamo-squid
 sudo certbot renew --dry-run
 ```
 
-## Configure SpotPilot
+## Configure Hozamo
 
 Add the authenticated proxy URL to `.env`:
 
 ```dotenv
-SPOTPILOT_PROXY_URL=https://first-user:URL_SAFE_PASSWORD@proxy.example.com:8443
+HOZAMO_PROXY_URL=https://first-user:URL_SAFE_PASSWORD@proxy.example.com:8443
 ```
 
-If it is missing or empty, SpotPilot uses direct connections. When present, it
+If it is missing or empty, Hozamo uses direct connections. When present, it
 applies to all public and private SafeTrade and CoinEx API calls.
 
 Test public endpoints before private balances or orders:
@@ -186,6 +186,6 @@ headers.
 
 ## Adding another exchange
 
-Proxy use in the application is already global. When SpotPilot adds a new
+Proxy use in the application is already global. When Hozamo adds a new
 exchange, append its API hostname to the `exchange_api` ACL in `squid.conf`,
 run `sudo squid -k parse`, and reload Squid.

@@ -1,15 +1,15 @@
-export class SpotPilotError extends Error {
+export class HozamoError extends Error {
   constructor(message, options = {}) {
     super(message, options);
     this.name = new.target.name;
   }
 }
 
-export class SpotPilotConfigError extends SpotPilotError {}
+export class HozamoConfigError extends HozamoError {}
 
-export class SpotPilotValidationError extends SpotPilotError {}
+export class HozamoValidationError extends HozamoError {}
 
-export class SpotPilotApiError extends SpotPilotError {
+export class HozamoApiError extends HozamoError {
   constructor(message, {
     exchange = null,
     status = null,
@@ -35,8 +35,8 @@ export class SpotPilotApiError extends SpotPilotError {
 
 // Backward-compatible names for users of the v0.2 SafeTrade client.
 export {
-  SpotPilotError as SafeTradeError,
-  SpotPilotConfigError as SafeTradeConfigError,
-  SpotPilotValidationError as SafeTradeValidationError,
-  SpotPilotApiError as SafeTradeApiError,
+  HozamoError as SafeTradeError,
+  HozamoConfigError as SafeTradeConfigError,
+  HozamoValidationError as SafeTradeValidationError,
+  HozamoApiError as SafeTradeApiError,
 };

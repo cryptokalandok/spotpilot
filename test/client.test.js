@@ -293,7 +293,7 @@ test('exchange factory proxies SafeTrade requests when globally configured', asy
   const client = createExchangeClient({
     exchange: 'safetrade',
     env: {
-      SPOTPILOT_PROXY_URL: 'https://proxy.example.com:8443',
+      HOZAMO_PROXY_URL: 'https://proxy.example.com:8443',
     },
     fetchImpl: async (url, options) => {
       calls.push({ url, options });

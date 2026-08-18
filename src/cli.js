@@ -12,8 +12,8 @@ import {
   subtractDecimals,
 } from './decimal.js';
 import {
-  SpotPilotApiError,
-  SpotPilotValidationError,
+  HozamoApiError,
+  HozamoValidationError,
 } from './errors.js';
 import {
   createExchangeClient,
@@ -65,11 +65,11 @@ export async function runCli(argv, dependencies = {}) {
     const fileEnv = loadEnvFile(join(cwd, '.env'));
     const config = { ...fileEnv, ...env };
     configureDnsResultOrder(
-      config.SPOTPILOT_DNS_RESULT_ORDER,
+      config.HOZAMO_DNS_RESULT_ORDER,
       dependencies.setDnsResultOrder,
     );
     const exchange = normalizeExchangeName(
-      options.exchange ?? config.SPOTPILOT_EXCHANGE ?? 'safetrade',
+      options.exchange ?? config.HOZAMO_EXCHANGE ?? 'safetrade',
     );
     const clientFactory = dependencies.clientFactory ?? ((clientOptions) => (
       createExchangeClient(clientOptions)
@@ -78,7 +78,7 @@ export async function runCli(argv, dependencies = {}) {
       exchange,
       env: config,
       timeoutMs: parseTimeout(
-        config.SPOTPILOT_TIMEOUT_MS ??
+        config.HOZAMO_TIMEOUT_MS ??
         (exchange === 'coinex'
           ? config.COINEX_TIMEOUT_MS
           : config.SAFETRADE_TIMEOUT_MS),
@@ -107,12 +107,12 @@ export async function runCli(argv, dependencies = {}) {
         await submitOrder(client, options, {
           stdout,
           confirm: dependencies.confirm ?? defaultConfirm,
-          buyReservePercent: config.SPOTPILOT_BUY_RESERVE_PERCENT,
+          buyReservePercent: config.HOZAMO_BUY_RESERVE_PERCENT,
         });
         return 0;
       default:
-        throw new SpotPilotValidationError(
-          `Unknown command: ${command}. Use "node spotpilot --help".`,
+        throw new HozamoValidationError(
+          `Unknown command: ${command}. Use "node hozamo --help".`,
         );
     }
   } catch (error) {
@@ -199,12 +199,12 @@ async function submitOrder(
     .filter(Boolean)
     .length;
   if (sizingOptionCount !== 1) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'Use exactly one of --amount, --balance-percent or --receive',
     );
   }
   if (hasReceive && side !== 'sell') {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       '--receive can only be used with sell orders',
     );
   }
@@ -212,25 +212,25 @@ async function submitOrder(
     options['reserve-percent'] !== undefined &&
     (!hasBalancePercent || side !== 'buy')
   ) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       '--reserve-percent can only be used with buy orders sized by --balance-percent',
     );
   }
 
   if (hasPrice && hasPricePercent) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       '--price and --price-percent are mutually exclusive',
     );
   }
 
   if (type === 'market' && (hasPrice || hasPricePercent)) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'Market orders must not use --price or --price-percent',
     );
   }
 
   if (type === 'limit' && !hasPrice && !hasPricePercent) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'A limit order requires exactly one of --price or --price-percent',
     );
   }
@@ -295,7 +295,7 @@ async function submitOrder(
     const balance = await client.getBalance(quote);
     const available = balance?.available ?? '0';
     if (compareDecimals(available, requiredQuote) < 0) {
-      throw new SpotPilotValidationError(
+      throw new HozamoValidationError(
         `Insufficient ${quote} balance: ${available} available, approximately ${requiredQuote} required`,
       );
     }
@@ -379,7 +379,7 @@ async function resolveBalancePercentOrder({
   );
 
   if (compareDecimals(allocation, '0') <= 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `${balancePercent}% of the available ${balanceAsset} balance rounds down to zero`,
     );
   }
@@ -407,7 +407,7 @@ async function resolveBalancePercentOrder({
   );
 
   if (compareDecimals(budget, '0') <= 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `The ${quote} order budget rounds down to zero after applying the reserve`,
     );
   }
@@ -435,7 +435,7 @@ async function resolveBalancePercentOrder({
   );
 
   if (compareDecimals(amount, '0') <= 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `The calculated ${base} order amount rounds down to zero`,
     );
   }
@@ -471,7 +471,7 @@ async function resolveReceiveSellOrder({
   );
 
   if (compareDecimals(amount, '0') <= 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `The calculated ${base} order amount rounds to zero`,
     );
   }
@@ -498,7 +498,7 @@ async function checkSellBalance(client, base, amount, stdout) {
   const balance = await client.getBalance(base);
   const available = balance?.available ?? '0';
   if (compareDecimals(available, amount) < 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `Insufficient ${base} balance: ${available} available, ` +
       `${amount} requested for this order`,
     );
@@ -508,7 +508,7 @@ async function checkSellBalance(client, base, amount, stdout) {
 
 async function requireMarketInfo(client, pair) {
   if (typeof client.getMarketInfo !== 'function') {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'The selected exchange client does not provide market precision metadata',
     );
   }
@@ -522,7 +522,7 @@ function assertMinimumAmount(amount, marketInfo, base) {
     compareDecimals(amount, marketInfo.minAmount) < 0
   ) {
     const market = marketInfo.pair ?? marketInfo.market ?? 'selected';
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `Order amount ${amount} ${base} is below the ${market} market minimum ` +
       `of ${marketInfo.minAmount} ${base}`,
     );
@@ -532,7 +532,7 @@ function assertMinimumAmount(amount, marketInfo, base) {
 function normalizeBalancePercent(value) {
   const percent = normalizePositiveDecimal(value, 'balance-percent');
   if (compareDecimals(percent, '100') > 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'balance-percent must be greater than 0 and at most 100',
     );
   }
@@ -542,12 +542,12 @@ function normalizeBalancePercent(value) {
 function normalizeReservePercent(value) {
   const percent = String(value).trim().replace(',', '.');
   if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(percent)) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'reserve-percent must be a decimal from 0 up to, but not including, 100',
     );
   }
   if (compareDecimals(percent, '100') >= 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'reserve-percent must be a decimal from 0 up to, but not including, 100',
     );
   }
@@ -566,23 +566,23 @@ function parseOptions(args) {
     }
 
     if (!argument.startsWith('--')) {
-      throw new SpotPilotValidationError(`Unexpected argument: ${argument}`);
+      throw new HozamoValidationError(`Unexpected argument: ${argument}`);
     }
 
     const [rawName, inlineValue] = argument.slice(2).split(/=(.*)/s, 2);
     const name = rawName.trim();
 
     if (!name) {
-      throw new SpotPilotValidationError('Invalid empty option');
+      throw new HozamoValidationError('Invalid empty option');
     }
 
     if (Object.hasOwn(options, name)) {
-      throw new SpotPilotValidationError(`Option --${name} was provided twice`);
+      throw new HozamoValidationError(`Option --${name} was provided twice`);
     }
 
     if (BOOLEAN_OPTIONS.has(name)) {
       if (inlineValue !== undefined && !['true', 'false'].includes(inlineValue)) {
-        throw new SpotPilotValidationError(
+        throw new HozamoValidationError(
           `Boolean option --${name} accepts only true or false`,
         );
       }
@@ -592,7 +592,7 @@ function parseOptions(args) {
 
     const value = inlineValue ?? args[index + 1];
     if (value === undefined || value.startsWith('--')) {
-      throw new SpotPilotValidationError(`Option --${name} requires a value`);
+      throw new HozamoValidationError(`Option --${name} requires a value`);
     }
     if (inlineValue === undefined) {
       index += 1;
@@ -605,7 +605,7 @@ function parseOptions(args) {
 
 function resolveSideOption(options) {
   if (options.side !== undefined && options.order !== undefined) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'Use either --side or the compatibility alias --order, not both',
     );
   }
@@ -615,7 +615,7 @@ function resolveSideOption(options) {
 function normalizeChoice(value, name, allowed) {
   const normalized = String(value ?? '').trim().toLowerCase();
   if (!allowed.includes(normalized)) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `--${name} is required and must be one of: ${allowed.join(', ')}`,
     );
   }
@@ -635,7 +635,7 @@ function parseAssetList(value) {
 
 function requireOption(value, name) {
   if (value === undefined || String(value).trim() === '') {
-    throw new SpotPilotValidationError(`${name} is required`);
+    throw new HozamoValidationError(`${name} is required`);
   }
 }
 
@@ -643,7 +643,7 @@ function assertKnownOptions(options, allowed) {
   const allowedSet = new Set(allowed);
   const unknown = Object.keys(options).find((name) => !allowedSet.has(name));
   if (unknown) {
-    throw new SpotPilotValidationError(`Unknown option: --${unknown}`);
+    throw new HozamoValidationError(`Unknown option: --${unknown}`);
   }
 }
 
@@ -653,7 +653,7 @@ function parseTimeout(value) {
   }
   const timeout = Number(value);
   if (!Number.isInteger(timeout) || timeout <= 0) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'The configured timeout must be a positive integer',
     );
   }
@@ -689,7 +689,7 @@ function loadEnvFile(path) {
 
 async function defaultConfirm(question) {
   if (!processStdin.isTTY) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'Non-interactive order submission requires --yes',
     );
   }
@@ -732,7 +732,7 @@ function printTable(headers, rows, stdout) {
 }
 
 function formatCliError(error) {
-  if (error instanceof SpotPilotApiError && error.code === 'CLOUDFLARE_BLOCKED') {
+  if (error instanceof HozamoApiError && error.code === 'CLOUDFLARE_BLOCKED') {
     const ray = error.rayId ? ` Cloudflare Ray ID: ${error.rayId}.` : '';
     return [
       'SafeTrade blocked the API request through Cloudflare (HTTP 403).',
@@ -744,10 +744,10 @@ function formatCliError(error) {
 }
 
 function helpText() {
-  return `SpotPilot ${VERSION} — multi-exchange spot trading CLI
+  return `Hozamo ${VERSION} — multi-exchange spot trading CLI
 
 Usage:
-  node spotpilot <command> [options]
+  node hozamo <command> [options]
 
 Commands:
   price      Show the last traded price for a pair
@@ -756,38 +756,38 @@ Commands:
   order      Validate and submit a market or limit order
 
 Examples:
-  node spotpilot price --exchange coinex --pair BTC-USDT
-  node spotpilot status --exchange coinex --coin PEARL,USDT
-  node spotpilot balance --exchange coinex --coin QUAI,RVN
-  node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --amount 0.001
-  node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --balance-percent 100
-  node spotpilot order --exchange coinex --type market --side sell --pair BTC-USDT --receive 100 --dryrun
-  node spotpilot order --exchange coinex --type market --side buy --pair BTC-USDT --balance-percent 100 --dryrun
-  node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price-percent 10
-  node spotpilot order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price 60000 --dryrun
+  node hozamo price --exchange coinex --pair BTC-USDT
+  node hozamo status --exchange coinex --coin PEARL,USDT
+  node hozamo balance --exchange coinex --coin QUAI,RVN
+  node hozamo order --exchange coinex --type market --side sell --pair BTC-USDT --amount 0.001
+  node hozamo order --exchange coinex --type market --side sell --pair BTC-USDT --balance-percent 100
+  node hozamo order --exchange coinex --type market --side sell --pair BTC-USDT --receive 100 --dryrun
+  node hozamo order --exchange coinex --type market --side buy --pair BTC-USDT --balance-percent 100 --dryrun
+  node hozamo order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price-percent 10
+  node hozamo order --exchange coinex --type limit --side sell --pair BTC-USDT --amount 0.001 --price 60000 --dryrun
 
-Run "node spotpilot <command> --help" for command-specific help.`;
+Run "node hozamo <command> --help" for command-specific help.`;
 }
 
 function commandHelp(command) {
   const help = {
-    price: `Usage: node spotpilot price [--exchange safetrade|coinex] --pair BTC-USDT`,
-    status: `Usage: node spotpilot status [--exchange safetrade|coinex] --coin PEARL,USDT
+    price: `Usage: node hozamo price [--exchange safetrade|coinex] --pair BTC-USDT`,
+    status: `Usage: node hozamo status [--exchange safetrade|coinex] --coin PEARL,USDT
 
 Shows deposit/withdrawal availability for one or more comma-separated assets.
 Network-specific rows are included when the exchange provides them.`,
-    balance: `Usage: node spotpilot balance [--exchange safetrade|coinex] --coin QUAI,RVN`,
-    order: `Usage: node spotpilot order --type market|limit --side buy|sell [options]
+    balance: `Usage: node hozamo balance [--exchange safetrade|coinex] --coin QUAI,RVN`,
+    order: `Usage: node hozamo order --type market|limit --side buy|sell [options]
 
 Options:
-  --exchange coinex     Exchange (default: SPOTPILOT_EXCHANGE or safetrade)
+  --exchange coinex     Exchange (default: HOZAMO_EXCHANGE or safetrade)
   --pair BTC-USDT       Trading pair; required
   --amount 0.001        Exact base-asset amount
   --balance-percent 100 Percentage of available base (sell) or quote (buy)
   --receive 100         Target gross quote proceeds for a sell order
                         Use exactly one of --amount, --balance-percent or --receive
   --reserve-percent 0.5 Buy-side reserve used with --balance-percent
-                        (default: SPOTPILOT_BUY_RESERVE_PERCENT or 0.5)
+                        (default: HOZAMO_BUY_RESERVE_PERCENT or 0.5)
   --price 0.28          Exact limit price
   --price-percent 10    Limit price relative to last traded price
   --dryrun              Validate without submitting
@@ -795,7 +795,7 @@ Options:
   --order sell          Compatibility alias for --side sell`,
   };
   if (!help[command]) {
-    throw new SpotPilotValidationError(`Unknown command: ${command}`);
+    throw new HozamoValidationError(`Unknown command: ${command}`);
   }
   return help[command];
 }

@@ -1,12 +1,12 @@
 {
-  "name": "spotpilot",
+  "name": "hozamo",
   "version": "0.8.0",
   "private": true,
   "description": "A multi-exchange spot trading CLI for SafeTrade and CoinEx.",
   "type": "module",
   "main": "./src/index.js",
   "bin": {
-    "spotpilot": "./spotpilot"
+    "hozamo": "./hozamo"
   },
   "exports": {
     ".": "./src/index.js"
@@ -15,12 +15,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node ./spotpilot",
-    "spotpilot": "node ./spotpilot",
+    "start": "node ./hozamo",
+    "hozamo": "node ./hozamo",
     "test": "node --test",
-    "check": "node --check spotpilot && node --check src/cli.js && node --check src/client.js && node --check src/exchanges/coinex.js && node --check src/exchanges/index.js && node --check src/status.js && node --check src/network.js && node --check src/decimal.js && node --check src/normalizers.js && node --check src/errors.js",
-    "smoke:safetrade": "node ./spotpilot price --exchange safetrade --pair BTC-USDT",
-    "smoke:coinex": "node ./spotpilot price --exchange coinex --pair BTC-USDT"
+    "check": "node --check hozamo && node --check src/cli.js && node --check src/client.js && node --check src/exchanges/coinex.js && node --check src/exchanges/index.js && node --check src/status.js && node --check src/network.js && node --check src/decimal.js && node --check src/normalizers.js && node --check src/errors.js",
+    "smoke:safetrade": "node ./hozamo price --exchange safetrade --pair BTC-USDT",
+    "smoke:coinex": "node ./hozamo price --exchange coinex --pair BTC-USDT"
   },
   "keywords": [
     "safetrade",

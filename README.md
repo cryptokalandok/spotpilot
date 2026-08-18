@@ -1,10 +1,10 @@
-# SpotPilot
+# Hozamo
 
-SpotPilot is a multi-exchange spot trading CLI and reusable Node.js library.
+Hozamo is a multi-exchange spot trading CLI and reusable Node.js library.
 It currently supports SafeTrade and CoinEx. The same client/service layer can
 later be called from an AWS Lambda handler.
 
-> **Setting up SpotPilot?** Follow the
+> **Setting up Hozamo?** Follow the
 > [environment setup guide](docs/environment.md) for step-by-step HiveOS/Linux
 > and Windows instructions, API credential configuration and scheduled-run
 > working-directory requirements.
@@ -24,24 +24,24 @@ Install dependencies once, then run the CLI:
 
 ```bash
 npm install
-node spotpilot --help
-node spotpilot price --exchange coinex --pair BTC-USDT
+node hozamo --help
+node hozamo price --exchange coinex --pair BTC-USDT
 ```
 
-To make `spotpilot` available as a command while developing locally:
+To make `hozamo` available as a command while developing locally:
 
 ```bash
 npm link
-spotpilot --help
+hozamo --help
 ```
 
 Alternatively, every command can be run through npm:
 
 ```bash
-npm run spotpilot -- price --exchange coinex --pair BTC-USDT
+npm run hozamo -- price --exchange coinex --pair BTC-USDT
 ```
 
-Running `node spotpilot` without a command prints the help screen.
+Running `node hozamo` without a command prints the help screen.
 
 ## Configuration
 
@@ -53,10 +53,10 @@ cp .env.example .env
 ```
 
 ```dotenv
-SPOTPILOT_EXCHANGE=coinex
-SPOTPILOT_DNS_RESULT_ORDER=ipv4first
+HOZAMO_EXCHANGE=coinex
+HOZAMO_DNS_RESULT_ORDER=ipv4first
 # Leave empty for direct connections, or set one global proxy:
-# SPOTPILOT_PROXY_URL=https://username:password@proxy.example.com:8443
+# HOZAMO_PROXY_URL=https://username:password@proxy.example.com:8443
 
 COINEX_API_KEY=your-access-id
 COINEX_API_SECRET=your-secret-key
@@ -68,25 +68,25 @@ SAFETRADE_API_SECRET=your-api-secret
 Exchange selection uses this precedence:
 
 1. the command's `--exchange safetrade|coinex` option;
-2. `SPOTPILOT_EXCHANGE` from the environment or `.env`;
+2. `HOZAMO_EXCHANGE` from the environment or `.env`;
 3. `safetrade` for backward compatibility.
 
 The CLI loads `.env` itself; no `dotenv` package is needed. Existing shell
 environment variables override values from the file.
 
-`SPOTPILOT_DNS_RESULT_ORDER` controls DNS address ordering for every exchange,
+`HOZAMO_DNS_RESULT_ORDER` controls DNS address ordering for every exchange,
 not only SafeTrade. It defaults to `ipv4first`, which prefers IPv4 without
 disabling IPv6 fallback. Use `ipv6first` to prefer IPv6 or `verbatim` to retain
 the address order returned by the operating system's resolver.
 
-`SPOTPILOT_PROXY_URL` is optional. When it is missing or empty, SpotPilot
+`HOZAMO_PROXY_URL` is optional. When it is missing or empty, Hozamo
 connects directly. When it is set, **all public and private API requests for
 every exchange** use that HTTP(S) forward proxy. This includes prices, market
 metadata, status, balances and order submission. Supported formats are:
 
 ```dotenv
-SPOTPILOT_PROXY_URL=http://proxy.example.com:3128
-SPOTPILOT_PROXY_URL=https://username:password@proxy.example.com:8443
+HOZAMO_PROXY_URL=http://proxy.example.com:3128
+HOZAMO_PROXY_URL=https://username:password@proxy.example.com:8443
 ```
 
 Prefer an `https://` proxy when credentials cross the public internet. URL
@@ -96,8 +96,8 @@ global by design; it is not limited to SafeTrade.
 Optional variables:
 
 ```dotenv
-SPOTPILOT_BUY_RESERVE_PERCENT=0.5
-SPOTPILOT_TIMEOUT_MS=15000
+HOZAMO_BUY_RESERVE_PERCENT=0.5
+HOZAMO_TIMEOUT_MS=15000
 SAFETRADE_BASE_URL=https://safe.trade/api/v2
 COINEX_BASE_URL=https://api.coinex.com/v2
 COINEX_WINDOW_TIME_MS=5000
@@ -110,12 +110,12 @@ history and process listings.
 ## Commands
 
 The following examples select CoinEx explicitly. You can omit
-`--exchange coinex` after setting `SPOTPILOT_EXCHANGE=coinex`.
+`--exchange coinex` after setting `HOZAMO_EXCHANGE=coinex`.
 
 ### Price
 
 ```bash
-node spotpilot price --exchange coinex --pair BTC-USDT
+node hozamo price --exchange coinex --pair BTC-USDT
 ```
 
 The displayed price is the ticker's **last traded price**.
@@ -123,8 +123,8 @@ The displayed price is the ticker's **last traded price**.
 ### Asset and deposit status
 
 ```bash
-node spotpilot status --exchange coinex --coin PEARL,USDT
-node spotpilot status --exchange safetrade --coin BTC,USDT
+node hozamo status --exchange coinex --coin PEARL,USDT
+node hozamo status --exchange safetrade --coin BTC,USDT
 ```
 
 Deposit and withdrawal availability belongs to an asset and, on some
@@ -135,7 +135,7 @@ exchanges, to a specific blockchain network rather than to a trading pair.
 - network-specific rows when the exchange returns them.
 
 `ENABLED` and `DISABLED` are direct normalized API values. `UNKNOWN` means the
-exchange omitted the relevant field; SpotPilot does not guess. CoinEx status
+exchange omitted the relevant field; Hozamo does not guess. CoinEx status
 requests require `COINEX_API_KEY` and `COINEX_API_SECRET`. SafeTrade's currency
 and market status requests are public, but may still be affected by its
 Cloudflare block.
@@ -143,7 +143,7 @@ Cloudflare block.
 ### Balances
 
 ```bash
-node spotpilot balance --exchange coinex --coin QUAI,RVN
+node hozamo balance --exchange coinex --coin QUAI,RVN
 ```
 
 Output contains total, available and locked amounts. CoinEx's `frozen` balance
@@ -154,7 +154,7 @@ displayed as zero.
 ### Market order
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange coinex \
   --type market \
   --side sell \
@@ -163,14 +163,14 @@ node spotpilot order \
 ```
 
 `--amount` always means the base-asset amount: in `BTC-USDT`, `--amount 0.001`
-means 0.001 BTC for both buys and sells. SpotPilot explicitly sends this
+means 0.001 BTC for both buys and sells. Hozamo explicitly sends this
 denomination to CoinEx for market orders.
 
 Every order requires exactly one sizing option: an exact base `--amount`, an
 available `--balance-percent`, or a target sell `--receive` amount. They cannot
 be used together.
 
-Before a sell, SpotPilot checks the base asset's available balance. It then
+Before a sell, Hozamo checks the base asset's available balance. It then
 shows an order summary and asks for confirmation. Use `--yes` only for an
 intentional non-interactive submission.
 
@@ -182,7 +182,7 @@ The original `--order sell` spelling is accepted as a compatibility alias, but
 Sell all available base asset:
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange safetrade \
   --type market \
   --side sell \
@@ -193,7 +193,7 @@ node spotpilot order \
 Use the available quote balance for a buy:
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange safetrade \
   --type market \
   --side buy \
@@ -212,8 +212,8 @@ meaning follows the order side:
 
 Buy orders keep 0.5% of the selected quote allocation by default as a visible
 safety reserve for fees, rounding and market movement. Override it per command
-with `--reserve-percent`, or set `SPOTPILOT_BUY_RESERVE_PERCENT` in `.env`.
-Use `--reserve-percent 0` only when you intentionally want SpotPilot to attempt
+with `--reserve-percent`, or set `HOZAMO_BUY_RESERVE_PERCENT` in `.env`.
+Use `--reserve-percent 0` only when you intentionally want Hozamo to attempt
 using the complete selected quote allocation.
 
 The CLI fetches the market's amount and price precision before calculating an
@@ -222,7 +222,7 @@ calculated base amount below the exchange's advertised minimum is rejected
 locally. The confirmation summary shows the available balance, allocation,
 reserve, final budget and calculated order amount.
 
-For CoinEx market buys, SpotPilot sends the calculated budget in the quote
+For CoinEx market buys, Hozamo sends the calculated budget in the quote
 asset directly. SafeTrade market buys and all limit buys are converted to a
 base-asset amount using the last traded or selected limit price.
 
@@ -231,7 +231,7 @@ base-asset amount using the last traded or selected limit price.
 To sell enough of the base asset for approximately 100 USDT of gross proceeds:
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange coinex \
   --type market \
   --side sell \
@@ -240,7 +240,7 @@ node spotpilot order \
 ```
 
 `--receive` is available only for sell orders and denotes the pair's quote
-asset. For `BTC-USDT`, `--receive 100` therefore targets 100 USDT. SpotPilot
+asset. For `BTC-USDT`, `--receive 100` therefore targets 100 USDT. Hozamo
 fetches the market's base-amount precision and calculates how much BTC must be
 sold. The amount is rounded **up** to that precision so the estimated gross
 proceeds do not fall below the target solely because of amount rounding.
@@ -251,7 +251,7 @@ at multiple prices. For a limit order, the calculation uses `--price` or the
 price produced by `--price-percent`:
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange coinex \
   --type limit \
   --side sell \
@@ -263,14 +263,14 @@ node spotpilot order \
 The target and displayed estimate are **gross** values. Trading fees are not
 included, and market-order slippage cannot be known before execution. Therefore
 `--receive 100` cannot guarantee that exactly 100 USDT will be credited after
-fees. SpotPilot prints the reference price, calculated base amount and estimated
+fees. Hozamo prints the reference price, calculated base amount and estimated
 gross proceeds before confirmation, and rejects the order if the available base
 balance is insufficient.
 
 ### Limit order with an exact price
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange coinex \
   --type limit \
   --side sell \
@@ -285,7 +285,7 @@ normalized to decimal points.
 ### Limit order relative to the current price
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange coinex \
   --type limit \
   --side sell \
@@ -302,7 +302,7 @@ mutually exclusive.
 ### Dryrun
 
 ```bash
-node spotpilot order \
+node hozamo order \
   --exchange coinex \
   --type limit \
   --side sell \
@@ -316,7 +316,7 @@ A dryrun performs the required private, read-only balance call and all local
 validations, including balance-percentage sizing and market-precision lookup,
 but never submits an order. It therefore still needs API credentials.
 
-For buy orders, SpotPilot estimates the required quote balance from the limit
+For buy orders, Hozamo estimates the required quote balance from the limit
 price or last traded price. The estimate excludes fees and market-order
 slippage; the selected exchange remains the final authority when accepting an
 order.
@@ -368,7 +368,7 @@ npm run smoke:safetrade
 
 SafeTrade's Cloudflare configuration may block a legitimate API request before
 it reaches the exchange. This affects even public ticker requests and has also
-been reported against SafeTrade's official example client. SpotPilot recognizes
+been reported against SafeTrade's official example client. Hozamo recognizes
 this response and prints a short actionable error instead of the full HTML
 page.
 
@@ -378,23 +378,23 @@ Cloudflare Ray ID if the block persists. Before choosing AWS Lambda, ask
 SafeTrade whether requests from AWS IP ranges are supported.
 
 Some hosts have both IPv4 and IPv6 connectivity while SafeTrade has allowlisted
-only one of their public addresses. SpotPilot therefore prefers IPv4 for all
+only one of their public addresses. Hozamo therefore prefers IPv4 for all
 exchange requests by default. To temporarily restore Node's resolver order:
 
 ```dotenv
-SPOTPILOT_DNS_RESULT_ORDER=verbatim
+HOZAMO_DNS_RESULT_ORDER=verbatim
 ```
 
 ## Optional HTTPS CONNECT proxy
 
 A standard forward proxy can provide a stable outbound IP address without
-receiving exchange API credentials in plaintext. SpotPilot sends an HTTP
+receiving exchange API credentials in plaintext. Hozamo sends an HTTP
 `CONNECT` request to the proxy and then establishes the exchange's normal TLS
 session through that tunnel. The proxy can see the destination hostname,
 connection time and transferred byte counts, but not the exchange request
 path, headers, API key, signature, body or response.
 
-SpotPilot does not install a custom certificate authority and does not disable
+Hozamo does not install a custom certificate authority and does not disable
 TLS certificate verification. A proxy attempting to impersonate an exchange
 therefore causes certificate validation to fail instead of silently exposing
 credentials.
@@ -416,10 +416,10 @@ import {
   createExchangeClient,
 } from './src/index.js';
 
-configureDnsResultOrder(process.env.SPOTPILOT_DNS_RESULT_ORDER);
+configureDnsResultOrder(process.env.HOZAMO_DNS_RESULT_ORDER);
 
 const client = createExchangeClient({
-  exchange: process.env.SPOTPILOT_EXCHANGE ?? 'coinex',
+  exchange: process.env.HOZAMO_EXCHANGE ?? 'coinex',
   env: process.env,
 });
 
@@ -451,7 +451,7 @@ await client.createOrder({
 `SafeTradeClient` and `CoinExClient` can also be instantiated directly.
 `configureDnsResultOrder()` uses the same global IPv4-first default for library
 and future Lambda entry points. `createExchangeClient()` reads
-`SPOTPILOT_PROXY_URL` from its `env` object and applies it to either provider.
+`HOZAMO_PROXY_URL` from its `env` object and applies it to either provider.
 All financial values stay as decimal strings.
 
 ## API mapping
@@ -481,7 +481,7 @@ uses `X-COINEX-KEY`, `X-COINEX-SIGN`, `X-COINEX-TIMESTAMP` and
 - IP-lock the API key if the selected exchange supports it for your account.
 - Keep `.env` out of version control.
 - Use a unique proxy account per user and rotate or revoke it independently.
-- Never install a proxy CA or disable TLS verification on a SpotPilot host.
+- Never install a proxy CA or disable TLS verification on a Hozamo host.
 - For Lambda, use AWS Secrets Manager or encrypted SSM Parameter Store.
 - Start with `--dryrun`, then test the smallest permitted real amount.
 - A successfully created limit order may remain open or fill only partially.

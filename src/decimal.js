@@ -1,4 +1,4 @@
-import { SpotPilotValidationError } from './errors.js';
+import { HozamoValidationError } from './errors.js';
 
 export function compareDecimals(left, right) {
   const a = parseDecimal(left);
@@ -47,7 +47,7 @@ export function divideDecimalsCeil(left, right, scale) {
 export function percentageOf(value, percent, scale) {
   const normalizedPercent = parseDecimal(percent);
   if (normalizedPercent.coefficient <= 0n) {
-    throw new SpotPilotValidationError('percent must be greater than zero');
+    throw new HozamoValidationError('percent must be greater than zero');
   }
 
   return divideDecimals(multiplyDecimals(value, percent), '100', scale);
@@ -60,7 +60,7 @@ export function applyPercent(value, percent) {
   const multiplier = 100n * percentScale + adjustment.coefficient;
 
   if (multiplier <= 0n) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'price-percent must result in a positive price',
     );
   }
@@ -76,7 +76,7 @@ function parseDecimal(value, { signed = false } = {}) {
   const pattern = signed ? /^-?\d+(?:\.\d+)?$/ : /^\d+(?:\.\d+)?$/;
 
   if (!pattern.test(normalized)) {
-    throw new SpotPilotValidationError(`Invalid decimal value: ${value}`);
+    throw new HozamoValidationError(`Invalid decimal value: ${value}`);
   }
 
   const negative = normalized.startsWith('-');
@@ -92,12 +92,12 @@ function prepareDivision(left, right, scale) {
   const b = parseDecimal(right);
 
   if (!Number.isInteger(scale) || scale < 0 || scale > 100) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'Decimal division scale must be an integer between 0 and 100',
     );
   }
   if (b.coefficient === 0n) {
-    throw new SpotPilotValidationError('Cannot divide by zero');
+    throw new HozamoValidationError('Cannot divide by zero');
   }
 
   const exponent = b.scale + scale - a.scale;

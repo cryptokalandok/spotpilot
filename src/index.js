@@ -4,10 +4,10 @@ export {
   createSignature,
 } from './client.js';
 export {
-  SpotPilotApiError,
-  SpotPilotConfigError,
-  SpotPilotError,
-  SpotPilotValidationError,
+  HozamoApiError,
+  HozamoConfigError,
+  HozamoError,
+  HozamoValidationError,
   SafeTradeApiError,
   SafeTradeConfigError,
   SafeTradeError,

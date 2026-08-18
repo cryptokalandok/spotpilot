@@ -1,8 +1,8 @@
 import { createHmac } from 'node:crypto';
 import {
-  SpotPilotApiError,
-  SpotPilotConfigError,
-  SpotPilotValidationError,
+  HozamoApiError,
+  HozamoConfigError,
+  HozamoValidationError,
 } from '../errors.js';
 import {
   normalizeAsset,
@@ -56,15 +56,15 @@ export class CoinExClient {
     now = Date.now,
   } = {}) {
     if (typeof fetchImpl !== 'function') {
-      throw new SpotPilotConfigError(
+      throw new HozamoConfigError(
         'A fetch implementation is required (Node.js 20 or newer is recommended)',
       );
     }
     if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-      throw new SpotPilotConfigError('timeoutMs must be a positive integer');
+      throw new HozamoConfigError('timeoutMs must be a positive integer');
     }
     if (!Number.isInteger(windowTimeMs) || windowTimeMs <= 0) {
-      throw new SpotPilotConfigError('windowTimeMs must be a positive integer');
+      throw new HozamoConfigError('windowTimeMs must be a positive integer');
     }
 
     this.#apiKey = apiKey;
@@ -98,7 +98,7 @@ export class CoinExClient {
     const raw = markets?.find?.((item) => item.market === market);
 
     if (!raw) {
-      throw new SpotPilotApiError(
+      throw new HozamoApiError(
         `CoinEx returned no market metadata for ${pair}`,
         {
           exchange: 'coinex',
@@ -134,7 +134,7 @@ export class CoinExClient {
     });
 
     if (!payload.data?.asset) {
-      throw new SpotPilotApiError(
+      throw new HozamoApiError(
         `CoinEx returned no deposit/withdrawal status for ${asset}`,
         {
           exchange: 'coinex',
@@ -152,7 +152,7 @@ export class CoinExClient {
 
   async getAssetStatuses(coins, options = {}) {
     if (coins === undefined) {
-      throw new SpotPilotValidationError('coins is required');
+      throw new HozamoValidationError('coins is required');
     }
     return Promise.all(normalizeCoinList(coins).map((asset) => (
       this.getDepositWithdrawalConfig(asset, { signal: options.signal })
@@ -168,7 +168,7 @@ export class CoinExClient {
     const ticker = payload.data?.find?.((item) => item.market === market);
 
     if (!ticker) {
-      throw new SpotPilotApiError(`CoinEx returned no ticker for ${market}`, {
+      throw new HozamoApiError(`CoinEx returned no ticker for ${market}`, {
         exchange: 'coinex',
         response: payload,
         code: 'TICKER_NOT_FOUND',
@@ -181,7 +181,7 @@ export class CoinExClient {
   async getPrice(pair, options = {}) {
     const ticker = await this.getTicker(pair, options);
     if (ticker.last === undefined || ticker.last === null) {
-      throw new SpotPilotApiError('CoinEx ticker response has no last price', {
+      throw new HozamoApiError('CoinEx ticker response has no last price', {
         exchange: 'coinex',
         response: ticker,
         code: 'INVALID_TICKER_RESPONSE',
@@ -264,21 +264,21 @@ export class CoinExClient {
     const normalizedAmountAsset = normalizeAsset(amountAsset ?? base);
 
     if (![base, quote].includes(normalizedAmountAsset)) {
-      throw new SpotPilotValidationError(
+      throw new HozamoValidationError(
         `amountAsset must be ${base} or ${quote}`,
       );
     }
     if (normalizedType === 'limit' && normalizedAmountAsset !== base) {
-      throw new SpotPilotValidationError(
+      throw new HozamoValidationError(
         `CoinEx limit-order amount must be denominated in ${base}`,
       );
     }
 
     if (normalizedType === 'limit' && price === undefined) {
-      throw new SpotPilotValidationError('price is required for a limit order');
+      throw new HozamoValidationError('price is required for a limit order');
     }
     if (normalizedType === 'market' && price !== undefined) {
-      throw new SpotPilotValidationError(
+      throw new HozamoValidationError(
         'price must not be provided for a market order',
       );
     }
@@ -286,7 +286,7 @@ export class CoinExClient {
       clientId !== undefined &&
       (!/^[A-Za-z0-9_-]+$/.test(clientId) || Buffer.byteLength(clientId) > 32)
     ) {
-      throw new SpotPilotValidationError(
+      throw new HozamoValidationError(
         'clientId may contain letters, numbers, hyphens and underscores up to 32 bytes',
       );
     }
@@ -364,7 +364,7 @@ export class CoinExClient {
       const payload = await parseResponse(response);
 
       if (!response.ok) {
-        throw new SpotPilotApiError(
+        throw new HozamoApiError(
           `CoinEx gateway returned HTTP ${response.status}${errorDetail(payload)}`,
           {
             exchange: 'coinex',
@@ -377,7 +377,7 @@ export class CoinExClient {
         );
       }
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-        throw new SpotPilotApiError('CoinEx returned an invalid response', {
+        throw new HozamoApiError('CoinEx returned an invalid response', {
           exchange: 'coinex',
           status: response.status,
           method,
@@ -387,7 +387,7 @@ export class CoinExClient {
         });
       }
       if (Number(payload.code) !== 0) {
-        throw new SpotPilotApiError(
+        throw new HozamoApiError(
           `CoinEx API error ${payload.code}: ${payload.message || 'Unknown error'}`,
           {
             exchange: 'coinex',
@@ -403,12 +403,12 @@ export class CoinExClient {
 
       return payload;
     } catch (error) {
-      if (error instanceof SpotPilotApiError) {
+      if (error instanceof HozamoApiError) {
         throw error;
       }
       if (controller.signal.aborted) {
         const timedOut = controller.signal.reason === 'timeout';
-        throw new SpotPilotApiError(
+        throw new HozamoApiError(
           timedOut ? 'CoinEx request timed out' : 'CoinEx request was aborted',
           {
             exchange: 'coinex',
@@ -419,7 +419,7 @@ export class CoinExClient {
           },
         );
       }
-      throw new SpotPilotApiError('CoinEx request failed', {
+      throw new HozamoApiError('CoinEx request failed', {
         exchange: 'coinex',
         method,
         url: url.toString(),
@@ -434,7 +434,7 @@ export class CoinExClient {
 
   #authenticationHeaders(method, url, bodyText) {
     if (!this.#apiKey || !this.#apiSecret) {
-      throw new SpotPilotConfigError(
+      throw new HozamoConfigError(
         'COINEX_API_KEY and COINEX_API_SECRET are required for private CoinEx endpoints',
       );
     }
@@ -466,13 +466,13 @@ function createMonotonicTimestamp(now) {
 
 function normalizeBaseUrl(baseUrl) {
   if (typeof baseUrl !== 'string' || baseUrl.trim() === '') {
-    throw new SpotPilotConfigError('baseUrl must be a non-empty URL');
+    throw new HozamoConfigError('baseUrl must be a non-empty URL');
   }
   let url;
   try {
     url = new URL(baseUrl);
   } catch (cause) {
-    throw new SpotPilotConfigError('baseUrl must be a valid URL', { cause });
+    throw new HozamoConfigError('baseUrl must be a valid URL', { cause });
   }
   return url.toString().replace(/\/$/, '');
 }
@@ -480,7 +480,7 @@ function normalizeBaseUrl(baseUrl) {
 function normalizeChoice(value, name, allowed) {
   const normalized = String(value ?? '').trim().toLowerCase();
   if (!allowed.includes(normalized)) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `${name} must be one of: ${allowed.join(', ')}`,
     );
   }
@@ -490,7 +490,7 @@ function normalizeChoice(value, name, allowed) {
 function normalizePrecision(value, name) {
   const precision = Number(value);
   if (!Number.isInteger(precision) || precision < 0 || precision > 100) {
-    throw new SpotPilotApiError(`${name} is missing or invalid`, {
+    throw new HozamoApiError(`${name} is missing or invalid`, {
       exchange: 'coinex',
       response: value,
       code: 'INVALID_MARKET_METADATA',
@@ -506,7 +506,7 @@ function optionalPositiveDecimal(value, name) {
   try {
     return normalizePositiveDecimal(value, name);
   } catch (cause) {
-    throw new SpotPilotApiError(`${name} is invalid`, {
+    throw new HozamoApiError(`${name} is invalid`, {
       exchange: 'coinex',
       response: value,
       code: 'INVALID_MARKET_METADATA',

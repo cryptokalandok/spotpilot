@@ -1,11 +1,11 @@
-# Explicit HTTPS forward proxy for SpotPilot.
+# Explicit HTTPS forward proxy for Hozamo.
 # Replace proxy.example.com certificate paths as described in docs/proxy.md.
 
 https_port 0.0.0.0:8443 tls-cert=/etc/squid/tls/fullchain.pem tls-key=/etc/squid/tls/privkey.pem
 
 auth_param basic program /usr/lib/squid/basic_ncsa_auth /etc/squid/passwords
 auth_param basic children 5
-auth_param basic realm SpotPilot proxy
+auth_param basic realm Hozamo proxy
 auth_param basic credentialsttl 2 hours
 auth_param basic casesensitive on
 
@@ -25,7 +25,7 @@ http_access deny all
 # CONNECT traffic is not cacheable; keep the intent explicit.
 cache deny all
 
-visible_hostname spotpilot-proxy
+visible_hostname hozamo-proxy
 access_log daemon:/var/log/squid/access.log squid
 cache_log /var/log/squid/cache.log
 

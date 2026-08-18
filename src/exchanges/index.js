@@ -1,7 +1,7 @@
 import { SafeTradeClient } from '../client.js';
 import {
-  SpotPilotConfigError,
-  SpotPilotValidationError,
+  HozamoConfigError,
+  HozamoValidationError,
 } from '../errors.js';
 import { createProxyFetch } from '../network.js';
 import { CoinExClient } from './coinex.js';
@@ -16,7 +16,7 @@ export function normalizeExchangeName(value) {
   };
   const exchange = aliases[normalized];
   if (!exchange) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `Unsupported exchange: ${value}. Supported: ${SUPPORTED_EXCHANGES.join(', ')}`,
     );
   }
@@ -33,10 +33,10 @@ export function createExchangeClient({
   const normalized = normalizeExchangeName(exchange);
 
   if (!env || typeof env !== 'object') {
-    throw new SpotPilotConfigError('env must be an object');
+    throw new HozamoConfigError('env must be an object');
   }
 
-  const requestFetch = createProxyFetch(env.SPOTPILOT_PROXY_URL, {
+  const requestFetch = createProxyFetch(env.HOZAMO_PROXY_URL, {
     fetchImpl,
   });
 
@@ -71,7 +71,7 @@ function parseOptionalPositiveInteger(value, name) {
   }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new SpotPilotConfigError(`${name} must be a positive integer`);
+    throw new HozamoConfigError(`${name} must be a positive integer`);
   }
   return parsed;
 }

@@ -1,16 +1,16 @@
-import { SpotPilotValidationError } from './errors.js';
+import { HozamoValidationError } from './errors.js';
 
 const DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
 export function normalizeMarket(pair) {
   if (typeof pair !== 'string' || pair.trim() === '') {
-    throw new SpotPilotValidationError('pair must be a non-empty string');
+    throw new HozamoValidationError('pair must be a non-empty string');
   }
 
   const market = pair.trim().toLowerCase().replace(/[-_/\s]/g, '');
 
   if (!/^[a-z0-9]+$/.test(market)) {
-    throw new SpotPilotValidationError(`Invalid pair: ${pair}`);
+    throw new HozamoValidationError(`Invalid pair: ${pair}`);
   }
 
   return market;
@@ -22,7 +22,7 @@ export function splitPair(pair) {
   );
 
   if (!match) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'Pair must contain a separator, for example BTC-USDT',
     );
   }
@@ -32,13 +32,13 @@ export function splitPair(pair) {
 
 export function normalizeAsset(asset) {
   if (typeof asset !== 'string' || asset.trim() === '') {
-    throw new SpotPilotValidationError('asset must be a non-empty string');
+    throw new HozamoValidationError('asset must be a non-empty string');
   }
 
   const normalized = asset.trim().toUpperCase();
 
   if (!/^[A-Z0-9]+$/.test(normalized)) {
-    throw new SpotPilotValidationError(`Invalid asset: ${asset}`);
+    throw new HozamoValidationError(`Invalid asset: ${asset}`);
   }
 
   return normalized;
@@ -48,7 +48,7 @@ export function normalizePositiveDecimal(value, fieldName) {
   const normalized = String(value).trim().replace(',', '.');
 
   if (!DECIMAL_PATTERN.test(normalized) || /^0(?:\.0+)?$/.test(normalized)) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       `${fieldName} must be a positive decimal number`,
     );
   }
@@ -103,7 +103,7 @@ export function extractLastPrice(payload) {
   );
 
   if (value === undefined) {
-    throw new SpotPilotValidationError(
+    throw new HozamoValidationError(
       'SafeTrade ticker response did not contain a last price',
     );
   }
@@ -122,20 +122,20 @@ function extractArray(payload, keys) {
     }
   }
 
-  throw new SpotPilotValidationError(
+  throw new HozamoValidationError(
     'SafeTrade response did not contain a balance array',
   );
 }
 
 function decimalString(value) {
   if (typeof value !== 'string' && typeof value !== 'number') {
-    throw new SpotPilotValidationError(`Invalid decimal value: ${value}`);
+    throw new HozamoValidationError(`Invalid decimal value: ${value}`);
   }
 
   const normalized = String(value).trim();
 
   if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) {
-    throw new SpotPilotValidationError(`Invalid decimal value: ${value}`);
+    throw new HozamoValidationError(`Invalid decimal value: ${value}`);
   }
 
   return normalized;

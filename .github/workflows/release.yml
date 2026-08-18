@@ -56,11 +56,11 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          package_name="spotpilot-v${VERSION}-linux"
+          package_name="hozamo-v${VERSION}-linux"
           package_dir="release/${package_name}"
 
           mkdir -p "$package_dir"
-          cp .env.example LICENSE README.md package.json package-lock.json spotpilot "$package_dir/"
+          cp .env.example LICENSE README.md package.json package-lock.json hozamo "$package_dir/"
           cp -R src docs examples deploy node_modules "$package_dir/"
           tar -C release -czf "${package_name}.tar.gz" "$package_name"
 
@@ -68,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-linux
-          path: spotpilot-v*-linux.tar.gz
+          path: hozamo-v*-linux.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -118,7 +118,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          $packageName = "spotpilot-v$env:VERSION-windows"
+          $packageName = "hozamo-v$env:VERSION-windows"
           $packageDir = Join-Path "release" $packageName
 
           New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
@@ -129,8 +129,8 @@ jobs:
             "README.md",
             "package.json",
             "package-lock.json",
-            "spotpilot",
-            "spotpilot.cmd"
+            "hozamo",
+            "hozamo.cmd"
           )
           Copy-Item $files -Destination $packageDir
 
@@ -147,7 +147,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-windows
-          path: spotpilot-v*-windows.zip
+          path: hozamo-v*-windows.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -172,7 +172,7 @@ jobs:
         shell: bash
         run: |
           cd dist
-          sha256sum spotpilot-* > SHA256SUMS.txt
+          sha256sum hozamo-* > SHA256SUMS.txt
 
       - name: Create or update GitHub release
         shell: bash
@@ -186,5 +186,5 @@ jobs:
             gh release create "$RELEASE_TAG" dist/* \
               --verify-tag \
               --generate-notes \
-              --title "SpotPilot $RELEASE_TAG"
+              --title "Hozamo $RELEASE_TAG"
           fi

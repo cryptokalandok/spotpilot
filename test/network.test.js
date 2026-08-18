@@ -6,7 +6,7 @@ import {
   normalizeDnsResultOrder,
   normalizeProxyUrl,
 } from '../src/network.js';
-import { SpotPilotConfigError } from '../src/errors.js';
+import { HozamoConfigError } from '../src/errors.js';
 
 test('DNS result order defaults to IPv4 first', () => {
   const calls = [];
@@ -25,7 +25,7 @@ test('invalid DNS result order is rejected', () => {
   assert.throws(
     () => normalizeDnsResultOrder('ipv4'),
     (error) => {
-      assert.ok(error instanceof SpotPilotConfigError);
+      assert.ok(error instanceof HozamoConfigError);
       assert.match(error.message, /ipv4first, ipv6first, verbatim/);
       return true;
     },
@@ -44,11 +44,11 @@ test('proxy URL is optional and supports authenticated HTTP(S) proxies', () => {
 test('proxy URL rejects unsupported protocols and URL paths', () => {
   assert.throws(
     () => normalizeProxyUrl('socks5://proxy.example.com:1080'),
-    SpotPilotConfigError,
+    HozamoConfigError,
   );
   assert.throws(
     () => normalizeProxyUrl('https://proxy.example.com:8443/path'),
-    SpotPilotConfigError,
+    HozamoConfigError,
   );
 });
 
