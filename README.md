@@ -9,6 +9,15 @@ later be called from an AWS Lambda handler.
 > and Windows instructions, API credential configuration and scheduled-run
 > working-directory requirements.
 
+> [!WARNING]
+>
+> Hozamo is beta software and can submit real cryptocurrency exchange orders.
+> Always use a dedicated API key with only the permissions Hozamo requires, and **explicitly disable withdrawal permission**. Withdrawal access is not required for any Hozamo functionality.
+>
+> Test every strategy with `--dryrun` and start with the smallest order permitted by the exchange.
+>
+> Most importantly: **NEVER share your API key or secret with anyone.** Treat them like account credentials. A compromised API key may allow an unauthorized person to place harmful trades, and unnecessary permissions could put the assets stored in your account at even greater risk.
+
 ## Requirements
 
 - Node.js 20 or newer
